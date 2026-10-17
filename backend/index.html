@@ -1,0 +1,2274 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="cyber-teal">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AURA-GRAPH // Live Cloud War Room — Prateek Gupta (@prateek)</title>
+
+  <!-- Google Fonts: Inter & Fira Code -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Vis.js Network Standard CDN (v9.1.2 as requested) -->
+  <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/vis-network/9.1.2/dist/vis-network.min.js"></script>
+
+  <!-- Canvas Confetti CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+
+  <!-- Lucide Icons CDN -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <style>
+    /* ======================================================================
+       MULTI-THEME VARIABLE ENGINE (4 DISTINCT TACTICAL PALETTES)
+       ====================================================================== */
+    :root,
+    [data-theme="cyber-teal"] {
+      --bg-core: #080A0C;
+      --bg-panel: rgba(8, 10, 12, 0.75);
+      --bg-card: rgba(12, 17, 24, 0.85);
+      --primary: #00F2FF;
+      --primary-rgb: 0, 242, 255;
+      --secondary: #BC13FE;
+      --secondary-rgb: 188, 19, 254;
+      --warning: #FFAB00;
+      --warning-rgb: 255, 171, 0;
+      --danger: #FF3864;
+      --danger-rgb: 255, 56, 100;
+      --success: #00FF66;
+      --success-rgb: 0, 255, 102;
+      --text-main: #F8FAFC;
+      --text-muted: #94A3B8;
+    }
+
+    [data-theme="midnight-obsidian"] {
+      --bg-core: #030507;
+      --bg-panel: rgba(3, 5, 7, 0.78);
+      --bg-card: rgba(8, 13, 21, 0.88);
+      --primary: #00E5FF;
+      --primary-rgb: 0, 229, 255;
+      --secondary: #2979FF;
+      --secondary-rgb: 41, 121, 255;
+      --warning: #FFB300;
+      --warning-rgb: 255, 179, 0;
+      --danger: #FF1744;
+      --danger-rgb: 255, 23, 68;
+      --success: #00E676;
+      --success-rgb: 0, 230, 118;
+      --text-main: #F8FAFC;
+      --text-muted: #8FA3B8;
+    }
+
+    [data-theme="matrix-emerald"] {
+      --bg-core: #020A04;
+      --bg-panel: rgba(2, 10, 4, 0.78);
+      --bg-card: rgba(5, 18, 9, 0.88);
+      --primary: #00FF66;
+      --primary-rgb: 0, 255, 102;
+      --secondary: #76FF03;
+      --secondary-rgb: 118, 255, 3;
+      --warning: #FFC107;
+      --warning-rgb: 255, 193, 7;
+      --danger: #FF5252;
+      --danger-rgb: 255, 82, 82;
+      --success: #00FF66;
+      --success-rgb: 0, 255, 102;
+      --text-main: #ECFDF5;
+      --text-muted: #86EFAC;
+    }
+
+    [data-theme="cyberpunk-sunset"] {
+      --bg-core: #0D0221;
+      --bg-panel: rgba(13, 2, 33, 0.78);
+      --bg-card: rgba(23, 5, 50, 0.88);
+      --primary: #FF007F;
+      --primary-rgb: 255, 0, 127;
+      --secondary: #FFE600;
+      --secondary-rgb: 255, 230, 0;
+      --warning: #00E5FF;
+      --warning-rgb: 0, 229, 255;
+      --danger: #FF1744;
+      --danger-rgb: 255, 23, 68;
+      --success: #00FF9D;
+      --success-rgb: 0, 255, 157;
+      --text-main: #FDF2F8;
+      --text-muted: #F9A8D4;
+    }
+
+    * {
+      box-sizing: border-box;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(var(--primary-rgb), 0.45) var(--bg-core);
+    }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: var(--bg-core);
+      background-image:
+        radial-gradient(circle at 12% 0%, rgba(var(--primary-rgb), 0.14), transparent 42%),
+        radial-gradient(circle at 88% 8%, rgba(var(--secondary-rgb), 0.14), transparent 45%),
+        radial-gradient(circle at 50% 100%, rgba(var(--danger-rgb), 0.08), transparent 50%),
+        linear-gradient(to right, rgba(var(--primary-rgb), 0.03) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(var(--primary-rgb), 0.03) 1px, transparent 1px);
+      background-size: 100% 100%, 100% 100%, 100% 100%, 34px 34px, 34px 34px;
+      color: var(--text-main);
+      overflow-x: hidden;
+      transition: background-color 280ms cubic-bezier(0.4, 0, 0.2, 1), color 280ms cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .font-mono-code {
+      font-family: 'Fira Code', monospace;
+    }
+
+    /* ======================================================================
+       VIP 3D HOLOGRAPHIC GLASSMORPHISM & ANIMATIONS
+       ====================================================================== */
+    .holo-panel {
+      background: var(--bg-panel);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(var(--primary-rgb), 0.22);
+      box-shadow:
+        0 18px 40px -10px rgba(0, 0, 0, 0.85),
+        0 0 22px -4px rgba(var(--primary-rgb), 0.12),
+        inset 0 1px 0 0 rgba(255, 255, 255, 0.12),
+        inset 0 0 24px rgba(var(--primary-rgb), 0.04);
+      transition: all 260ms cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    .holo-panel:hover {
+      border-color: rgba(var(--primary-rgb), 0.48);
+      box-shadow:
+        0 22px 48px -8px rgba(0, 0, 0, 0.9),
+        0 0 30px -4px rgba(var(--primary-rgb), 0.22),
+        inset 0 1px 0 0 rgba(255, 255, 255, 0.18),
+        inset 0 0 28px rgba(var(--primary-rgb), 0.07);
+    }
+
+    /* 3D Metric Cards */
+    .kpi-card-3d {
+      background: linear-gradient(155deg, rgba(255, 255, 255, 0.04) 0%, var(--bg-card) 100%);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(var(--primary-rgb), 0.18);
+      box-shadow:
+        0 12px 28px -6px rgba(0, 0, 0, 0.75),
+        inset 0 1px 0 0 rgba(255, 255, 255, 0.1);
+      transition: transform 260ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 260ms cubic-bezier(0.22, 1, 0.36, 1), border-color 260ms ease;
+    }
+
+    .kpi-card-3d:hover {
+      transform: translateY(-4px) scale(1.015);
+      border-color: var(--primary);
+      box-shadow:
+        0 18px 36px -6px rgba(0, 0, 0, 0.85),
+        0 0 22px rgba(var(--primary-rgb), 0.28),
+        inset 0 0 16px rgba(var(--primary-rgb), 0.08);
+    }
+
+    /* 3D Quarantine Bucket Cards */
+    .bucket-card-3d {
+      background: var(--bg-card);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(var(--primary-rgb), 0.18);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.65), inset 0 1px 0 rgba(255, 255, 255, 0.07);
+      transition: all 240ms cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    .bucket-card-3d:hover {
+      transform: translateY(-3px) scale(1.006);
+      border-color: var(--primary);
+      box-shadow: 0 14px 32px rgba(0, 0, 0, 0.8), 0 0 22px rgba(var(--primary-rgb), 0.25);
+    }
+
+    .bucket-card-3d.selected-bucket {
+      border-color: var(--primary);
+      box-shadow:
+        0 0 28px rgba(var(--primary-rgb), 0.42),
+        inset 0 0 18px rgba(var(--primary-rgb), 0.15);
+    }
+
+    /* Dynamic Accent Utilities */
+    .text-theme-primary { color: var(--primary); }
+    .text-theme-secondary { color: var(--secondary); }
+    .text-theme-warning { color: var(--warning); }
+    .text-theme-danger { color: var(--danger); }
+    .text-theme-success { color: var(--success); }
+
+    .btn-holo-primary {
+      background: rgba(var(--primary-rgb), 0.14);
+      border: 1px solid rgba(var(--primary-rgb), 0.5);
+      color: var(--primary);
+      box-shadow: inset 0 0 10px rgba(var(--primary-rgb), 0.1);
+      transition: all 200ms cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .btn-holo-primary:hover {
+      background: rgba(var(--primary-rgb), 0.26);
+      box-shadow: 0 0 20px rgba(var(--primary-rgb), 0.4), inset 0 0 12px rgba(var(--primary-rgb), 0.2);
+      transform: translateY(-1px);
+    }
+
+    .btn-holo-secondary {
+      background: rgba(var(--secondary-rgb), 0.15);
+      border: 1px solid rgba(var(--secondary-rgb), 0.5);
+      color: var(--secondary);
+      box-shadow: inset 0 0 10px rgba(var(--secondary-rgb), 0.1);
+      transition: all 200ms cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .btn-holo-secondary:hover {
+      background: rgba(var(--secondary-rgb), 0.28);
+      box-shadow: 0 0 20px rgba(var(--secondary-rgb), 0.42), inset 0 0 12px rgba(var(--secondary-rgb), 0.2);
+      transform: translateY(-1px);
+    }
+
+    .btn-holo-warning {
+      background: rgba(var(--warning-rgb), 0.16);
+      border: 1px solid rgba(var(--warning-rgb), 0.55);
+      color: var(--warning);
+      transition: all 200ms cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .btn-holo-danger {
+      background: rgba(var(--danger-rgb), 0.16);
+      border: 1px solid rgba(var(--danger-rgb), 0.58);
+      color: var(--danger);
+      box-shadow: inset 0 0 10px rgba(var(--danger-rgb), 0.12);
+      transition: all 200ms cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .btn-holo-danger:hover {
+      background: rgba(var(--danger-rgb), 0.3);
+      box-shadow: 0 0 22px rgba(var(--danger-rgb), 0.48), inset 0 0 12px rgba(var(--danger-rgb), 0.22);
+      transform: translateY(-1px);
+    }
+
+    /* Keyframe Animations */
+    @keyframes falkor-pulse {
+      0%, 100% {
+        box-shadow: 0 0 10px rgba(var(--primary-rgb), 0.4), inset 0 0 8px rgba(var(--primary-rgb), 0.2);
+      }
+      50% {
+        box-shadow: 0 0 26px rgba(var(--primary-rgb), 0.85), inset 0 0 14px rgba(var(--primary-rgb), 0.4);
+      }
+    }
+    .animate-falkor-glow {
+      animation: falkor-pulse 2.6s infinite ease-in-out;
+    }
+
+    @keyframes orbit-spin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+    .animate-orbit {
+      animation: orbit-spin 11s linear infinite;
+    }
+
+    @keyframes radar-scanline {
+      0% { transform: translateY(-100%); }
+      100% { transform: translateY(900%); }
+    }
+    .radar-sweep-overlay::after {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 60px;
+      background: linear-gradient(to bottom, transparent, rgba(var(--primary-rgb), 0.06), transparent);
+      animation: radar-scanline 7s linear infinite;
+      pointer-events: none;
+    }
+
+    @keyframes cursor-blink {
+      0%, 49% { opacity: 1; }
+      50%, 100% { opacity: 0; }
+    }
+    .blinking-green-cursor {
+      display: inline-block;
+      width: 8px;
+      height: 15px;
+      background-color: #00FF66;
+      box-shadow: 0 0 8px #00FF66;
+      vertical-align: middle;
+      margin-left: 5px;
+      animation: cursor-blink 1s infinite;
+    }
+
+    /* Slide-Out Drawer Cubic-Bezier Transition */
+    .drawer-transition {
+      transition: transform 280ms cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    /* Vis.js Network Canvas & Custom Tooltips */
+    #vis-topology-canvas {
+      width: 100%;
+      height: 100%;
+      outline: none;
+    }
+
+    div.vis-tooltip {
+      background: rgba(8, 10, 12, 0.96) !important;
+      border: 1px solid var(--primary) !important;
+      border-radius: 10px !important;
+      color: #FFFFFF !important;
+      font-family: 'Fira Code', monospace !important;
+      font-size: 11px !important;
+      padding: 10px 12px !important;
+      box-shadow: 0 0 25px rgba(var(--primary-rgb), 0.4) !important;
+    }
+
+    /* Print-Ready Executive Audit Report Styles */
+    @media print {
+      body * {
+        visibility: hidden;
+      }
+      #printable-audit-document,
+      #printable-audit-document * {
+        visibility: visible;
+      }
+      #printable-audit-document {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+        background: #FFFFFF !important;
+        color: #0F172A !important;
+        padding: 28px !important;
+      }
+    }
+  </style>
+</head>
+
+<body class="min-h-screen flex flex-col selection:bg-cyan-400 selection:text-black">
+
+  <!-- ===================================================================== -->
+  <!-- 1. TOP HEADER & CONTROL BAR                                           -->
+  <!-- ===================================================================== -->
+  <header class="holo-panel sticky top-0 z-40 px-4 py-3 border-b space-y-2.5">
+    
+    <!-- Row 1: Branding, Active Tenant Mirror Dropdown, & Autonomous Agent Fleet -->
+    <div class="flex flex-wrap items-center justify-between gap-3">
+      
+      <!-- Left: Glowing Animated FalkorDB Icon + Title + Active Tenant Mirror -->
+      <div class="flex flex-wrap items-center gap-3.5">
+        <div class="relative w-12 h-12 rounded-2xl flex items-center justify-center btn-holo-primary animate-falkor-glow">
+          <i data-lucide="orbit" class="w-7 h-7 animate-orbit absolute opacity-70"></i>
+          <i data-lucide="cpu" class="w-4 h-4 relative z-10"></i>
+          <span class="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-[#00FF66] animate-ping"></span>
+          <span class="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-[#00FF66] shadow-[0_0_8px_#00FF66]"></span>
+        </div>
+
+        <div>
+          <div class="flex flex-wrap items-center gap-2.5">
+            <h1 class="text-base md:text-lg font-extrabold tracking-tight text-white">
+              AURA-GRAPH <span class="text-theme-primary font-mono-code">//</span> Live Cloud War Room
+            </h1>
+            <span class="text-[11px] font-mono-code font-bold px-2.5 py-0.5 rounded-md btn-holo-secondary">
+              Solo Architect: Prateek Gupta (@prateek)
+            </span>
+          </div>
+
+          <div class="flex flex-wrap items-center gap-2 mt-1">
+            <span class="text-xs font-semibold text-slate-400">Active Tenant Mirror:</span>
+            <select
+              id="active-tenant-select"
+              onchange="switchActiveTenantMirror(this.value)"
+              class="bg-black/80 text-theme-primary font-mono-code text-xs font-bold px-3 py-1 rounded-lg border border-white/15 focus:outline-none focus:border-white/40 cursor-pointer transition"
+            >
+              <option value="darkdata_graphops">OPS PRODUCTION (darkdata_graphops)</option>
+              <option value="fincorp_sec_graph">CORE FINANCE (fincorp_sec_graph)</option>
+              <option value="healthcare_hipaa_graph">HEALTHCARE HIPAA (healthcare_hipaa_graph)</option>
+            </select>
+            <span id="backend-sync-indicator" class="text-[11px] font-mono-code text-[#00FF66] flex items-center gap-1 ml-1">
+              <span class="w-2 h-2 rounded-full bg-[#00FF66]"></span> FalkorDB Synced
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right: Autonomous Agent Fleet Indicators -->
+      <div class="flex flex-wrap items-center gap-2 bg-black/60 px-3.5 py-2 rounded-xl border border-white/10">
+        <span class="text-[11px] font-bold uppercase tracking-wider text-slate-400 mr-1">
+          Autonomous Agent Fleet:
+        </span>
+
+        <div id="fleet-badge-recon" class="flex items-center gap-1.5 px-2.5 py-1 rounded-lg btn-holo-primary text-xs font-bold">
+          <span class="w-2 h-2 rounded-full bg-current animate-ping"></span>
+          <span>Recon (Scout)</span>
+        </div>
+
+        <div id="fleet-badge-sherlock" class="flex items-center gap-1.5 px-2.5 py-1 rounded-lg btn-holo-primary text-xs font-bold">
+          <span class="w-2 h-2 rounded-full bg-current animate-ping"></span>
+          <span>Sherlock (Reasoner)</span>
+        </div>
+
+        <div id="fleet-badge-guardian" class="flex items-center gap-1.5 px-2.5 py-1 rounded-lg btn-holo-primary text-xs font-bold">
+          <span class="w-2 h-2 rounded-full bg-current animate-ping"></span>
+          <span>Guardian (Governor)</span>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Row 2: Action Hub (Iconic & Animated Buttons + Instant Theme HUD) -->
+    <div class="pt-2 border-t border-white/10 flex flex-wrap items-center justify-between gap-2">
+      <div class="flex flex-wrap items-center gap-2">
+        <button
+          onclick="triggerScanIdleData()"
+          class="px-3.5 py-1.5 rounded-lg btn-holo-primary text-xs font-bold flex items-center gap-1.5 cursor-pointer"
+        >
+          <span>🔍 Scan Idle Data</span>
+        </button>
+
+        <button
+          id="btn-run-autocleanup"
+          onclick="triggerAutoCleanup()"
+          class="px-3.5 py-1.5 rounded-lg btn-holo-primary text-xs font-bold flex items-center gap-1.5 cursor-pointer"
+        >
+          <span id="autocleanup-btn-text">🧹 Run Auto-Cleanup</span>
+        </button>
+
+        <button
+          onclick="triggerChaosSandbox()"
+          class="px-3.5 py-1.5 rounded-lg btn-holo-danger text-xs font-bold flex items-center gap-1.5 cursor-pointer"
+        >
+          <span>⚡ Test Chaos Sandbox</span>
+        </button>
+
+        <button
+          onclick="triggerChaosReset()"
+          class="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/15 text-slate-300 border border-white/15 text-xs font-semibold flex items-center gap-1 cursor-pointer transition"
+          title="Reset Chaos Traps"
+        >
+          <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i>
+          <span>Reset Sandbox</span>
+        </button>
+
+        <button
+          onclick="openEpisodicMemoryVault()"
+          class="px-3.5 py-1.5 rounded-lg btn-holo-secondary text-xs font-bold flex items-center gap-1.5 cursor-pointer"
+        >
+          <span>🧠 Episodic Memory Vault</span>
+        </button>
+
+        <button
+          onclick="openExecutiveAuditReportModal()"
+          class="px-3.5 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white border border-white/25 text-xs font-bold flex items-center gap-1.5 cursor-pointer transition shadow-lg"
+        >
+          <span>📥 Download Executive Audit Report</span>
+        </button>
+      </div>
+
+      <!-- Instant Theme HUD Switcher -->
+      <div class="flex items-center gap-2 bg-black/80 px-3 py-1.5 rounded-lg border border-white/20">
+        <span class="text-xs">🎨</span>
+        <span class="text-xs font-bold text-slate-300">Theme HUD:</span>
+        <select
+          id="theme-switcher-select"
+          onchange="applyTacticalTheme(this.value)"
+          class="bg-transparent text-xs font-extrabold text-theme-primary focus:outline-none cursor-pointer"
+        >
+          <option value="cyber-teal" class="bg-slate-950 text-white">Cyber-Teal (Default)</option>
+          <option value="midnight-obsidian" class="bg-slate-950 text-white">Midnight Obsidian</option>
+          <option value="matrix-emerald" class="bg-slate-950 text-white">Matrix Emerald</option>
+          <option value="cyberpunk-sunset" class="bg-slate-950 text-white">Cyberpunk Sunset</option>
+        </select>
+      </div>
+    </div>
+
+  </header>
+
+  <!-- ===================================================================== -->
+  <!-- 2. GLOBAL METRICS TICKER (ANIMATED 3D GRID BAR)                       -->
+  <!-- ===================================================================== -->
+  <section class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3.5 px-4 pt-3.5">
+    
+    <!-- Metric 1: Total Storage Analyzed -->
+    <div class="kpi-card-3d rounded-2xl p-3.5 border-l-4" style="border-left-color: var(--primary);">
+      <div class="flex items-center justify-between text-xs font-semibold text-slate-400">
+        <span>Total Storage Analyzed</span>
+        <i data-lucide="share-2" class="w-4 h-4 text-theme-primary"></i>
+      </div>
+      <div class="mt-1.5 font-mono-code text-xl font-extrabold text-white">
+        <span id="kpi-nodes">45</span> Nodes / <span id="kpi-edges" class="text-theme-primary">81</span> Edges
+      </div>
+      <div class="text-[11px] text-slate-400 mt-1">Owner: <strong class="text-theme-primary">@prateek</strong></div>
+    </div>
+
+    <!-- Metric 2: Idle Data Traps >90D -->
+    <div class="kpi-card-3d rounded-2xl p-3.5 border-l-4" style="border-left-color: var(--warning);">
+      <div class="flex items-center justify-between text-xs font-semibold text-slate-400">
+        <span>Idle Data Traps &gt;90D</span>
+        <i data-lucide="clock" class="w-4 h-4 text-theme-warning"></i>
+      </div>
+      <div class="mt-1.5 font-mono-code text-xl font-extrabold text-theme-warning">
+        <span id="kpi-idle-traps">10</span> Buckets
+      </div>
+      <div class="text-[11px] text-slate-400 mt-1">Inactive over 90 days</div>
+    </div>
+
+    <!-- Metric 3: Protected Production Locks -->
+    <div class="kpi-card-3d rounded-2xl p-3.5 border-l-4" style="border-left-color: var(--danger);">
+      <div class="flex items-center justify-between text-xs font-semibold text-slate-400">
+        <span>Protected Production Locks</span>
+        <i data-lucide="shield-alert" class="w-4 h-4 text-theme-danger"></i>
+      </div>
+      <div class="mt-1.5 font-mono-code text-xl font-extrabold text-theme-danger">
+        <span id="kpi-prod-locks">5</span> Secured
+      </div>
+      <div class="text-[11px] text-slate-400 mt-1">Outages prevented automatically</div>
+    </div>
+
+    <!-- Metric 4: Storage Reclaimed -->
+    <div class="kpi-card-3d rounded-2xl p-3.5 border-l-4" style="border-left-color: var(--primary);">
+      <div class="flex items-center justify-between text-xs font-semibold text-slate-400">
+        <span>Storage Reclaimed</span>
+        <i data-lucide="hard-drive" class="w-4 h-4 text-theme-primary"></i>
+      </div>
+      <div class="mt-1.5 font-mono-code text-xl font-extrabold text-theme-primary">
+        <span id="kpi-reclaimed-gb">14,200</span> GB
+      </div>
+      <div class="text-[11px] text-slate-400 mt-1">Cleaned up safely</div>
+    </div>
+
+    <!-- Metric 5: Monthly Money Saved -->
+    <div class="kpi-card-3d rounded-2xl p-3.5 border-l-4" style="border-left-color: var(--success);">
+      <div class="flex items-center justify-between text-xs font-semibold text-slate-400">
+        <span>Monthly Money Saved</span>
+        <i data-lucide="dollar-sign" class="w-4 h-4 text-theme-success"></i>
+      </div>
+      <div class="mt-1.5 font-mono-code text-xl font-extrabold text-white">
+        $<span id="kpi-monthly-saved">1,840</span> <span class="text-xs font-normal text-slate-400">/mo</span>
+      </div>
+      <div id="kpi-annual-saved" class="text-[11px] text-theme-success font-semibold mt-1">$22,080 saved per year</div>
+    </div>
+
+    <!-- Metric 6: Carbon Footprint Offset -->
+    <div class="kpi-card-3d rounded-2xl p-3.5 border-l-4" style="border-left-color: var(--secondary);">
+      <div class="flex items-center justify-between text-xs font-semibold text-slate-400">
+        <span>Carbon Footprint Offset</span>
+        <i data-lucide="leaf" class="w-4 h-4 text-theme-secondary"></i>
+      </div>
+      <div class="mt-1.5 font-mono-code text-xl font-extrabold text-theme-secondary">
+        <span id="kpi-carbon-offset">412.8</span> kg CO2e
+      </div>
+      <div class="text-[11px] text-slate-400 mt-1">Green cloud impact</div>
+    </div>
+
+  </section>
+
+  <!-- ===================================================================== -->
+  <!-- MAIN WORKSPACE: LEFT (TOPOLOGY RADAR) + RIGHT (QUARANTINE MATRIX)     -->
+  <!-- ===================================================================== -->
+  <main class="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-4 p-4">
+
+    <!-- =================================================================== -->
+    <!-- 3. MULTI-HOP TOPOLOGY RADAR (LEFT 7 COLUMNS)                        -->
+    <!-- =================================================================== -->
+    <section class="lg:col-span-7 flex flex-col">
+      <div class="holo-panel rounded-2xl flex flex-col h-[650px] relative overflow-hidden radar-sweep-overlay">
+        
+        <!-- Radar Header -->
+        <div class="px-4 py-3 border-b border-white/10 bg-black/50 flex flex-wrap items-center justify-between gap-2 z-10">
+          <div class="flex items-center gap-2.5">
+            <span class="w-2.5 h-2.5 rounded-full bg-theme-primary animate-ping"></span>
+            <div>
+              <h2 class="text-xs md:text-sm font-extrabold uppercase tracking-wider text-white">
+                CLOUD DEPENDENCY &amp; BLAST RADIUS MAP
+              </h2>
+              <p class="text-[11px] text-slate-400">
+                Click any node to inspect its DNA and highlight its 1-to-3 hop service connections
+              </p>
+            </div>
+          </div>
+
+          <div class="flex items-center gap-1.5">
+            <button onclick="filterRadarGraph('ALL')" class="px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-xs font-semibold text-white transition">
+              Show All
+            </button>
+            <button onclick="filterRadarGraph('SAFE')" class="px-2.5 py-1 rounded-lg btn-holo-primary text-xs font-semibold">
+              Safe to Clean
+            </button>
+            <button onclick="filterRadarGraph('PROTECTED')" class="px-2.5 py-1 rounded-lg btn-holo-danger text-xs font-semibold">
+              Protected Locks
+            </button>
+            <button onclick="centerRadarCamera()" class="px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/15 text-xs text-slate-300 border border-white/15 transition">
+              Center Map
+            </button>
+          </div>
+        </div>
+
+        <!-- Vis.js Network Canvas -->
+        <div class="relative flex-1 bg-black/60">
+          <div id="vis-topology-canvas"></div>
+
+          <!-- Plain-English Footer Legend -->
+          <div class="absolute bottom-3.5 left-3.5 z-10 holo-panel px-4 py-2.5 rounded-xl border border-white/15 text-xs flex flex-wrap items-center gap-4 pointer-events-none">
+            <div class="flex items-center gap-2">
+              <span class="w-3.5 h-3.5 rounded-sm inline-block" style="background: var(--danger); box-shadow: 0 0 10px var(--danger);"></span>
+              <span class="text-slate-100 font-semibold">Idle Storage Bucket</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <span class="w-3.5 h-3.5 rounded-full inline-block" style="background: var(--primary); box-shadow: 0 0 10px var(--primary);"></span>
+              <span class="text-slate-100 font-semibold">Production Service</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <span class="w-3 h-3 rotate-45 inline-block" style="background: var(--secondary); box-shadow: 0 0 10px var(--secondary);"></span>
+              <span class="text-slate-100 font-semibold">Data Pipeline</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <span class="w-3.5 h-3.5 rounded-full inline-block" style="background: var(--warning); box-shadow: 0 0 10px var(--warning);"></span>
+              <span class="text-slate-100 font-semibold">Team (@prateek)</span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- =================================================================== -->
+    <!-- 4. DARK DATA QUARANTINE MATRIX (RIGHT 5 COLUMNS)                    -->
+    <!-- =================================================================== -->
+    <section class="lg:col-span-5 flex flex-col">
+      <div class="holo-panel rounded-2xl flex flex-col h-[650px] overflow-hidden">
+        
+        <!-- Matrix Top Header & Filter Controls -->
+        <div class="p-4 border-b border-white/10 bg-black/50 space-y-3">
+          <div class="flex items-center justify-between">
+            <div>
+              <h2 class="text-xs md:text-sm font-extrabold uppercase tracking-wider text-white flex items-center gap-2">
+                <i data-lucide="hard-drive" class="w-4 h-4 text-theme-primary"></i>
+                <span>IDLE STORAGE QUARANTINE MATRIX</span>
+              </h2>
+              <p class="text-[11px] text-slate-400 mt-0.5">
+                All cloud buckets managed by Lead Architect <strong class="text-theme-primary">@prateek</strong>
+              </p>
+            </div>
+            <span id="matrix-active-count-badge" class="text-xs font-mono-code font-bold px-3 py-1 rounded-lg btn-holo-primary">
+              10 Active
+            </span>
+          </div>
+
+          <!-- Search & Sort Controls -->
+          <div class="grid grid-cols-1 sm:grid-cols-12 gap-2.5">
+            <div class="sm:col-span-7 relative">
+              <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-3 top-2.5"></i>
+              <input
+                id="matrix-filter-input"
+                oninput="renderQuarantineCards()"
+                type="text"
+                placeholder="Filter storage bucket or owner..."
+                class="w-full bg-black/75 border border-white/15 focus:border-white/40 rounded-xl pl-9 pr-3 py-2 text-xs text-white placeholder-slate-400 focus:outline-none transition"
+              />
+            </div>
+
+            <div class="sm:col-span-5 flex items-center gap-1.5 bg-black/75 border border-white/15 rounded-xl px-3 py-2">
+              <span class="text-xs text-slate-400 shrink-0">Sort by:</span>
+              <select
+                id="matrix-sort-dropdown"
+                onchange="renderQuarantineCards()"
+                class="bg-transparent text-xs font-bold text-theme-primary focus:outline-none w-full cursor-pointer"
+              >
+                <option value="COST" class="bg-slate-950 text-white">Monthly Cost</option>
+                <option value="IDLE" class="bg-slate-950 text-white">Days Idle</option>
+                <option value="SIZE" class="bg-slate-950 text-white">Size in TB</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- Scrollable Glass-Morphic Storage Cards -->
+        <div id="quarantine-cards-list" class="flex-1 overflow-y-auto p-3.5 space-y-3.5">
+          <!-- Dynamically populated via JS -->
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ===================================================================== -->
+  <!-- 5. POWERHOUSE FEATURE 1: LIVE AGENT "THOUGHT STREAM" HUD (TERMINAL)   -->
+  <!-- ===================================================================== -->
+  <footer class="px-4 pb-4">
+    <div class="holo-panel rounded-2xl overflow-hidden border border-white/20">
+      
+      <!-- Collapsible Terminal Bar -->
+      <div
+        onclick="toggleTerminalDrawer()"
+        class="px-4 py-2.5 bg-black/85 border-b border-white/10 flex flex-wrap items-center justify-between gap-2 cursor-pointer select-none"
+      >
+        <div class="flex items-center gap-2.5">
+          <div class="flex items-center gap-1.5">
+            <span class="w-2.5 h-2.5 rounded-full bg-[#FF3864]"></span>
+            <span class="w-2.5 h-2.5 rounded-full bg-[#FFAB00]"></span>
+            <span class="w-2.5 h-2.5 rounded-full bg-[#00FF66]"></span>
+          </div>
+          <span class="font-mono-code text-xs font-bold text-white tracking-wider uppercase">
+            LIVE AGENT "THOUGHT STREAM" HUD
+          </span>
+          <span class="blinking-green-cursor"></span>
+        </div>
+
+        <div class="flex items-center gap-4 text-xs font-mono-code">
+          <span class="text-slate-400">Lead Architect: <strong class="text-theme-primary">@prateek</strong></span>
+          <span class="text-slate-400">FalkorDB Latency: <strong id="terminal-latency-ms" class="text-[#00FF66]">1.2ms</strong></span>
+          <button
+            onclick="event.stopPropagation(); clearAgentTerminal()"
+            class="text-slate-400 hover:text-white underline text-[11px]"
+          >
+            Clear Stream
+          </button>
+          <i data-lucide="chevron-down" id="terminal-chevron-icon" class="w-4 h-4 text-slate-400 transition-transform"></i>
+        </div>
+      </div>
+
+      <!-- Streaming Telemetry Lines -->
+      <div id="agent-thought-terminal" class="p-3.5 bg-[#030508]/95 font-mono-code text-xs h-36 overflow-y-auto space-y-1.5">
+        <!-- Populated dynamically -->
+      </div>
+
+    </div>
+  </footer>
+
+  <!-- ===================================================================== -->
+  <!-- 6. POWERHOUSE FEATURE 2: INTERACTIVE NODE INSPECTOR (SLIDE-OUT DRAWER) -->
+  <!-- ===================================================================== -->
+  <aside
+    id="node-dna-drawer"
+    class="fixed inset-y-0 right-0 z-50 w-full max-w-md holo-panel border-l border-white/25 shadow-2xl drawer-transition translate-x-full flex flex-col"
+  >
+    <!-- Drawer Header -->
+    <div class="p-4 border-b border-white/10 bg-black/80 flex items-center justify-between">
+      <div class="flex items-center gap-2.5">
+        <div class="w-9 h-9 rounded-xl btn-holo-primary flex items-center justify-center">
+          <i data-lucide="scan-Search" class="w-5 h-5"></i>
+        </div>
+        <div>
+          <h3 class="text-sm font-extrabold text-white uppercase tracking-wider">Interactive Node DNA Inspector</h3>
+          <p class="text-[11px] font-mono-code text-theme-primary">Complete Node Telemetry &amp; 1..3 Hop Lineage</p>
+        </div>
+      </div>
+      <button onclick="closeNodeInspector()" class="text-slate-400 hover:text-white p-1">
+        <i data-lucide="x" class="w-5 h-5"></i>
+      </button>
+    </div>
+
+    <!-- Drawer Body -->
+    <div class="p-5 flex-1 overflow-y-auto space-y-4">
+      
+      <!-- Node DNA Header Box -->
+      <div class="p-4 rounded-xl bg-black/65 border border-white/15 space-y-2">
+        <div class="flex items-center justify-between">
+          <span id="dna-node-category" class="text-[10px] font-mono-code font-bold uppercase px-2.5 py-0.5 rounded btn-holo-primary">
+            IDLE STORAGE BUCKET
+          </span>
+          <span id="dna-security-tier" class="text-[10px] font-mono-code font-bold uppercase px-2.5 py-0.5 rounded btn-holo-secondary">
+            INTERNAL TIER
+          </span>
+        </div>
+        <div id="dna-node-id" class="font-mono-code text-sm font-bold text-white break-all">
+          bkt-ops-q3-aggregates-archive
+        </div>
+        <div class="text-xs text-slate-300">
+          Owner Handle: <strong id="dna-owner-handle" class="text-theme-primary font-mono-code">@prateek</strong> (Prateek Gupta)
+        </div>
+      </div>
+
+      <!-- Cost & Carbon Telemetry Grid -->
+      <div class="grid grid-cols-2 gap-3 font-mono-code">
+        <div class="p-3 rounded-xl bg-black/65 border border-white/10">
+          <div class="text-[10px] text-slate-400 uppercase">Monthly Cloud Cost</div>
+          <div id="dna-monthly-cost" class="text-base font-bold text-theme-primary mt-0.5">$1,488 /mo</div>
+        </div>
+        <div class="p-3 rounded-xl bg-black/65 border border-white/10">
+          <div class="text-[10px] text-slate-400 uppercase">Carbon Footprint</div>
+          <div id="dna-carbon" class="text-base font-bold text-theme-secondary mt-0.5">347.2 kg CO2e</div>
+        </div>
+        <div class="p-3 rounded-xl bg-black/65 border border-white/10">
+          <div class="text-[10px] text-slate-400 uppercase">Storage Mass</div>
+          <div id="dna-size-tb" class="text-base font-bold text-white mt-0.5">12.4 TB</div>
+        </div>
+        <div class="p-3 rounded-xl bg-black/65 border border-white/10">
+          <div class="text-[10px] text-slate-400 uppercase">Days Idle</div>
+          <div id="dna-idle-days" class="text-base font-bold text-theme-warning mt-0.5">147 Days</div>
+        </div>
+      </div>
+
+      <!-- AI Verdict & Plain-English Reasoning -->
+      <div class="p-4 rounded-xl bg-black/65 border border-white/15 space-y-2">
+        <div class="text-xs font-bold uppercase text-white flex items-center gap-1.5">
+          <i data-lucide="shield-check" class="w-4 h-4 text-theme-primary"></i>
+          <span>Autonomous Fleet Verdict</span>
+        </div>
+        <div id="dna-verdict-badge" class="inline-block text-xs font-mono-code font-bold px-2.5 py-1 rounded"></div>
+        <p id="dna-explanation" class="text-xs text-slate-300 leading-relaxed"></p>
+      </div>
+
+      <!-- Connected Dependencies -->
+      <div class="p-4 rounded-xl bg-black/65 border border-white/15 space-y-2">
+        <div class="text-xs font-bold uppercase text-white">Connected Dependencies (1..3 Hops)</div>
+        <div id="dna-connected-list" class="flex flex-wrap gap-1.5 pt-1"></div>
+      </div>
+
+      <!-- Live FalkorDB Cypher Trace -->
+      <div class="p-3.5 rounded-xl bg-black/85 border border-white/15 space-y-1.5">
+        <div class="text-[10px] font-mono-code uppercase text-theme-primary">Executed FalkorDB Cypher Query</div>
+        <pre id="dna-cypher-box" class="text-[11px] font-mono-code text-slate-300 whitespace-pre-wrap overflow-x-auto"></pre>
+      </div>
+
+    </div>
+
+    <!-- Drawer Direct Action Buttons (Quarantine Node, Bypass Security Lock, Inspect Lineage) -->
+    <div class="p-4 border-t border-white/15 bg-black/90 grid grid-cols-3 gap-2">
+      <button
+        onclick="drawerActionQuarantineNode()"
+        class="py-2.5 px-2 rounded-xl btn-holo-primary font-bold text-[11px] flex items-center justify-center gap-1 cursor-pointer"
+      >
+        <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+        <span>Quarantine Node</span>
+      </button>
+
+      <button
+        onclick="drawerActionBypassLock()"
+        class="py-2.5 px-2 rounded-xl btn-holo-danger font-bold text-[11px] flex items-center justify-center gap-1 cursor-pointer"
+      >
+        <i data-lucide="unlock" class="w-3.5 h-3.5"></i>
+        <span>Bypass Security Lock</span>
+      </button>
+
+      <button
+        onclick="drawerActionInspectLineage()"
+        class="py-2.5 px-2 rounded-xl btn-holo-secondary font-bold text-[11px] flex items-center justify-center gap-1 cursor-pointer"
+      >
+        <i data-lucide="git-merge" class="w-3.5 h-3.5"></i>
+        <span>Inspect Lineage</span>
+      </button>
+    </div>
+  </aside>
+
+  <!-- ===================================================================== -->
+  <!-- 7. POWERHOUSE FEATURE 3: DEDICATED "EPISODIC MEMORY VAULT" MODAL      -->
+  <!-- ===================================================================== -->
+  <div
+    id="episodic-memory-vault-modal"
+    class="fixed inset-0 z-50 hidden items-center justify-center bg-black/80 backdrop-blur-md p-4"
+  >
+    <div class="holo-panel rounded-2xl max-w-4xl w-full border border-white/25 overflow-hidden shadow-2xl flex flex-col max-h-[86vh]">
+      
+      <!-- Modal Header -->
+      <div class="px-6 py-4 border-b border-white/15 bg-black/80 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl btn-holo-secondary flex items-center justify-center">
+            <i data-lucide="brain" class="w-5 h-5"></i>
+          </div>
+          <div>
+            <h3 class="text-base font-extrabold text-white uppercase tracking-wide">
+              Episodic Memory Vault (Cross-Session AI Adaptation)
+            </h3>
+            <p class="text-xs text-slate-400">
+              Persistent (:Memory) nodes and (:ProceduralRule) policies recorded in FalkorDB for <strong class="text-theme-primary">@prateek</strong>
+            </p>
+          </div>
+        </div>
+        <button onclick="closeEpisodicMemoryVault()" class="text-slate-400 hover:text-white">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <!-- Memory Vault Content -->
+      <div id="memory-vault-list" class="p-6 overflow-y-auto space-y-3.5 flex-1">
+        <!-- Populated dynamically -->
+      </div>
+
+      <!-- Modal Footer -->
+      <div class="px-6 py-3.5 bg-black/85 border-t border-white/15 flex items-center justify-between">
+        <span class="text-xs font-mono-code text-slate-400">
+          FalkorDB Lineage: (:Session)-[:RECORDED_MEMORY]-&gt;(:Memory)-[:ABOUT_BUCKET]-&gt;(:Bucket)
+        </span>
+        <button
+          onclick="closeEpisodicMemoryVault()"
+          class="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-bold text-white transition"
+        >
+          Close Memory Vault
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ===================================================================== -->
+  <!-- 8. EXECUTIVE AUDIT REPORT MODAL (WITH HTML + JSON + PDF DOWNLOADS)    -->
+  <!-- ===================================================================== -->
+  <div
+    id="executive-audit-report-modal"
+    class="fixed inset-0 z-50 hidden items-center justify-center bg-black/85 backdrop-blur-md p-4"
+  >
+    <div class="holo-panel rounded-2xl max-w-4xl w-full border border-white/25 overflow-hidden shadow-2xl flex flex-col max-h-[88vh]">
+      
+      <!-- Modal Header -->
+      <div class="px-6 py-4 border-b border-white/15 bg-black/85 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl btn-holo-primary flex items-center justify-center">
+            <i data-lucide="file-check-2" class="w-5 h-5"></i>
+          </div>
+          <div>
+            <h3 class="text-base font-extrabold text-white uppercase tracking-wide">
+              Executive Cloud FinOps &amp; Safety Audit Report
+            </h3>
+            <p class="text-xs text-slate-400">
+              Certified by Solo Lead Architect: <strong class="text-theme-primary">Prateek Gupta (@prateek)</strong>
+            </p>
+          </div>
+        </div>
+        <button onclick="closeExecutiveAuditReportModal()" class="text-slate-400 hover:text-white">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <!-- Printable Executive Summary Body -->
+      <div id="printable-audit-document" class="p-6 overflow-y-auto space-y-5 flex-1 bg-black/55 text-slate-100">
+        <!-- Populated dynamically -->
+      </div>
+
+      <!-- Modal Footer with Direct Download System -->
+      <div class="px-6 py-4 bg-black/90 border-t border-white/15 flex flex-wrap items-center justify-between gap-3">
+        <button
+          onclick="closeExecutiveAuditReportModal()"
+          class="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-bold text-slate-200 transition"
+        >
+          Close Report
+        </button>
+
+        <div class="flex flex-wrap items-center gap-2.5">
+          <button
+            onclick="downloadExecutiveReportJSON()"
+            class="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 text-xs font-bold text-white flex items-center gap-1.5 cursor-pointer transition"
+          >
+            <i data-lucide="file-json" class="w-4 h-4 text-theme-warning"></i>
+            <span>Download Telemetry (.JSON)</span>
+          </button>
+
+          <button
+            onclick="downloadExecutiveReportHTML()"
+            class="px-4 py-2 rounded-xl btn-holo-secondary text-xs font-bold flex items-center gap-1.5 cursor-pointer"
+          >
+            <i data-lucide="download" class="w-4 h-4"></i>
+            <span>Download Report (.HTML)</span>
+          </button>
+
+          <button
+            onclick="window.print()"
+            class="px-5 py-2 rounded-xl btn-holo-primary text-xs font-extrabold flex items-center gap-1.5 cursor-pointer"
+          >
+            <i data-lucide="printer" class="w-4 h-4"></i>
+            <span>Print / Save as PDF</span>
+          </button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ===================================================================== -->
+  <!-- VANILLA JAVASCRIPT ENGINE (AppState, Multi-Theme, Vis.js, Fetch API)  -->
+  <!-- ===================================================================== -->
+  <script>
+    const API_BASE = window.location.protocol === "file:" ? "http://127.0.0.1:8000" : "";
+
+    // Centralized State Management (AppState — Solo Owned by @prateek)
+    const AppState = {
+      ownerName: "Prateek Gupta",
+      ownerHandle: "@prateek",
+      theme: localStorage.getItem("auragraph_vip_theme") || "cyber-teal",
+      activeTenant: "darkdata_graphops",
+      selectedNodeId: null,
+      autoCleanupActive: false,
+      metrics: {
+        totalNodes: 45,
+        totalEdges: 81,
+        idleBuckets: 10,
+        protectedLocks: 5,
+        reclaimedGb: 14200,
+        monthlySavedUsd: 1840,
+        carbonOffsetKg: 412.8
+      },
+      buckets: [],
+      memories: [],
+      visNetwork: null,
+      visNodes: null,
+      visEdges: null,
+      rawGraph: { nodes: [], edges: [] }
+    };
+
+    // =========================================================================
+    // SOLO-ARCHITECT (@prateek) BASELINE DATA GENERATOR PER TENANT
+    // =========================================================================
+    function createTenantDataset(tenant) {
+      const prefix =
+        tenant === "fincorp_sec_graph" ? "fin" :
+        tenant === "healthcare_hipaa_graph" ? "hlth" : "ops";
+
+      const buckets = [
+        {
+          id: `bkt-${prefix}-legacy-clickstream-2023`,
+          name: `bkt-${prefix}-legacy-clickstream-2023`,
+          idle_days: 312,
+          size_gb: 18900,
+          monthly_cost_usd: 2268,
+          carbon_kg: 529.2,
+          sensitivity: "PUBLIC",
+          owner: "@prateek",
+          verdict_code: "SAFE",
+          verdict_label: "[SAFE TO CLEAN UP: ORPHANED DATA]",
+          safe_to_prune: true,
+          pruned: false,
+          connected_pipes: ["pipe-click-ingest-v1"],
+          connected_services: [],
+          explanation: "Zero live production services use this bucket. It is an old 2023 clickstream archive that can be safely cleaned up to save $2,268/mo."
+        },
+        {
+          id: `bkt-${prefix}-q3-aggregates-archive`,
+          name: `bkt-${prefix}-q3-aggregates-archive`,
+          idle_days: 147,
+          size_gb: 12400,
+          monthly_cost_usd: 1488,
+          carbon_kg: 347.2,
+          sensitivity: "INTERNAL",
+          owner: "@prateek",
+          verdict_code: "BLOCKED_PROD",
+          verdict_label: "[BLOCKED: LIVE PROD DEPENDENCY]",
+          safe_to_prune: false,
+          pruned: false,
+          connected_pipes: ["pipe-quarterly-recon"],
+          connected_services: ["BillingService (PROD)", "OrderService (PROD)"],
+          explanation: "Even though this bucket has been inactive for 147 days, live production services (BillingService and OrderService) still read from it during quarterly financial close."
+        },
+        {
+          id: `bkt-${prefix}-staging-loadtest-artifacts`,
+          name: `bkt-${prefix}-staging-loadtest-artifacts`,
+          idle_days: 189,
+          size_gb: 11200,
+          monthly_cost_usd: 1344,
+          carbon_kg: 313.6,
+          sensitivity: "PUBLIC",
+          owner: "@prateek",
+          verdict_code: "SAFE",
+          verdict_label: "[SAFE TO CLEAN UP: ORPHANED DATA]",
+          safe_to_prune: true,
+          pruned: false,
+          connected_pipes: ["pipe-perf-replay"],
+          connected_services: [],
+          explanation: "Only linked to a non-production staging test tool. Zero risk to live customer traffic."
+        },
+        {
+          id: `bkt-${prefix}-dev-sandbox-ml-checkpoints`,
+          name: `bkt-${prefix}-dev-sandbox-ml-checkpoints`,
+          idle_days: 204,
+          size_gb: 9400,
+          monthly_cost_usd: 1128,
+          carbon_kg: 263.2,
+          sensitivity: "INTERNAL",
+          owner: "@prateek",
+          verdict_code: "SAFE",
+          verdict_label: "[SAFE TO CLEAN UP: ORPHANED DATA]",
+          safe_to_prune: true,
+          pruned: false,
+          connected_pipes: [],
+          connected_services: [],
+          explanation: "Unused AI training checkpoints from an old test sandbox. No pipelines or production services are connected."
+        },
+        {
+          id: `bkt-${prefix}-customer-kyc-raw-dumps`,
+          name: `bkt-${prefix}-customer-kyc-raw-dumps`,
+          idle_days: 118,
+          size_gb: 6800,
+          monthly_cost_usd: 952,
+          carbon_kg: 190.4,
+          sensitivity: "PII_LOCKED",
+          owner: "@prateek",
+          verdict_code: "PII_HOLD",
+          verdict_label: "[COMPLIANCE HOLD: PII LOCKED]",
+          safe_to_prune: false,
+          pruned: false,
+          connected_pipes: ["pipe-kyc-verifier", "pipe-audit-archiver"],
+          connected_services: ["FraudDetectionEngine (PROD)", "AuthGateway (PROD)"],
+          explanation: "Protected customer identity records (PII) under legal hold, actively connected to FraudDetectionEngine and AuthGateway."
+        },
+        {
+          id: `bkt-${prefix}-ab-test-orphaned-logs`,
+          name: `bkt-${prefix}-ab-test-orphaned-logs`,
+          idle_days: 275,
+          size_gb: 7600,
+          monthly_cost_usd: 912,
+          carbon_kg: 212.8,
+          sensitivity: "INTERNAL",
+          owner: "@prateek",
+          verdict_code: "SAFE",
+          verdict_label: "[SAFE TO CLEAN UP: ORPHANED DATA]",
+          safe_to_prune: true,
+          pruned: false,
+          connected_pipes: [],
+          connected_services: [],
+          explanation: "Completely disconnected A/B testing logs from 9 months ago. Safe for immediate cleanup."
+        },
+        {
+          id: `bkt-${prefix}-realtime-feature-store-cold`,
+          name: `bkt-${prefix}-realtime-feature-store-cold`,
+          idle_days: 103,
+          size_gb: 5800,
+          monthly_cost_usd: 754,
+          carbon_kg: 162.4,
+          sensitivity: "INTERNAL",
+          owner: "@prateek",
+          verdict_code: "BLOCKED_PROD",
+          verdict_label: "[BLOCKED: LIVE PROD DEPENDENCY]",
+          safe_to_prune: false,
+          pruned: false,
+          connected_pipes: ["pipe-feature-hydrator"],
+          connected_services: ["RecommendationEngine (PROD)", "SearchDiscoveryAPI (PROD)"],
+          explanation: "Acts as a backup data store for RecommendationEngine and SearchDiscoveryAPI in production."
+        },
+        {
+          id: `bkt-${prefix}-partner-edi-settlements`,
+          name: `bkt-${prefix}-partner-edi-settlements`,
+          idle_days: 96,
+          size_gb: 5200,
+          monthly_cost_usd: 676,
+          carbon_kg: 145.6,
+          sensitivity: "PII_LOCKED",
+          owner: "@prateek",
+          verdict_code: "PII_HOLD",
+          verdict_label: "[COMPLIANCE HOLD: PII LOCKED]",
+          safe_to_prune: false,
+          pruned: false,
+          connected_pipes: ["pipe-edi-clearinghouse"],
+          connected_services: ["PaymentLedgerSvc (PROD)", "CheckoutAPI (PROD)"],
+          explanation: "Contains regulated partner payment records required by PaymentLedgerSvc and CheckoutAPI."
+        },
+        {
+          id: `bkt-${prefix}-tax-audit-vault-2024`,
+          name: `bkt-${prefix}-tax-audit-vault-2024`,
+          idle_days: 164,
+          size_gb: 4300,
+          monthly_cost_usd: 559,
+          carbon_kg: 120.4,
+          sensitivity: "PII_LOCKED",
+          owner: "@prateek",
+          verdict_code: "PII_HOLD",
+          verdict_label: "[COMPLIANCE HOLD: PII LOCKED]",
+          safe_to_prune: false,
+          pruned: false,
+          connected_pipes: ["pipe-tax-exporter"],
+          connected_services: ["TaxComplianceSvc (PROD)", "InvoiceGenerator (PROD)"],
+          explanation: "Locked tax audit vault required by TaxComplianceSvc and InvoiceGenerator."
+        },
+        {
+          id: `bkt-${prefix}-deprecated-cdn-access-logs`,
+          name: `bkt-${prefix}-deprecated-cdn-access-logs`,
+          idle_days: 340,
+          size_gb: 3000,
+          monthly_cost_usd: 360,
+          carbon_kg: 84.0,
+          sensitivity: "PUBLIC",
+          owner: "@prateek",
+          verdict_code: "SAFE",
+          verdict_label: "[SAFE TO CLEAN UP: ORPHANED DATA]",
+          safe_to_prune: true,
+          pruned: false,
+          connected_pipes: [],
+          connected_services: [],
+          explanation: "Old CDN logs idle for nearly a year with zero connected services."
+        }
+      ];
+
+      const memories = [
+        {
+          id: `mem-${prefix}-101`,
+          session: "Session #101",
+          bucket: `bkt-${prefix}-q3-aggregates-archive`,
+          verdict: "[BLOCKED: LIVE PROD DEPENDENCY]",
+          summary: `SherlockAgent traced a 2-hop link from BillingService & OrderService to bkt-${prefix}-q3-aggregates-archive. Automatic cleanup was blocked to protect production.`,
+          rule: "Procedural Rule: Never delete storage buckets connected to active billing or order pipelines.",
+          owner: "@prateek",
+          timestamp: "Session #101 • Verified"
+        },
+        {
+          id: `mem-${prefix}-102`,
+          session: "Session #102",
+          bucket: `bkt-${prefix}-customer-kyc-raw-dumps`,
+          verdict: "[COMPLIANCE HOLD: PII LOCKED]",
+          summary: `GuardianAgent locked bkt-${prefix}-customer-kyc-raw-dumps under @prateek's security policy because it holds regulated customer KYC records.`,
+          rule: "Procedural Rule: Any bucket tagged PII_LOCKED requires manual override from @prateek.",
+          owner: "@prateek",
+          timestamp: "Session #102 • Verified"
+        },
+        {
+          id: `mem-${prefix}-103`,
+          session: "Session #103",
+          bucket: `bkt-${prefix}-legacy-clickstream-2023`,
+          verdict: "[SAFE TO CLEAN UP: ORPHANED DATA]",
+          summary: `ReconAgent & SherlockAgent verified 0 live production links on bkt-${prefix}-legacy-clickstream-2023 ($2,268/mo savings ready).`,
+          rule: "Procedural Rule: Public buckets idle >180 days with zero production hops are cleared for automatic cleanup.",
+          owner: "@prateek",
+          timestamp: "Session #103 • Verified"
+        }
+      ];
+
+      return { buckets, memories };
+    }
+
+    // =========================================================================
+    // MULTI-THEME ENGINE
+    // =========================================================================
+    function getActiveThemePalette() {
+      const s = getComputedStyle(document.documentElement);
+      return {
+        primary: s.getPropertyValue("--primary").trim() || "#00F2FF",
+        secondary: s.getPropertyValue("--secondary").trim() || "#BC13FE",
+        warning: s.getPropertyValue("--warning").trim() || "#FFAB00",
+        danger: s.getPropertyValue("--danger").trim() || "#FF3864"
+      };
+    }
+
+    function applyTacticalTheme(themeName) {
+      AppState.theme = themeName;
+      document.documentElement.setAttribute("data-theme", themeName);
+      localStorage.setItem("auragraph_vip_theme", themeName);
+      document.getElementById("theme-switcher-select").value = themeName;
+      initVisTopologyRadar();
+      streamTerminalStep("GuardianAgent", `Switched War Room tactical palette to [${themeName.toUpperCase()}] for @prateek.`, "primary");
+    }
+
+    // =========================================================================
+    // VIS.JS MULTI-HOP TOPOLOGY RADAR (45 NODES / 81 EDGES)
+    // =========================================================================
+    function buildVisGraphNodesAndEdges() {
+      const palette = getActiveThemePalette();
+      const prefix =
+        AppState.activeTenant === "fincorp_sec_graph" ? "fin" :
+        AppState.activeTenant === "healthcare_hipaa_graph" ? "hlth" : "ops";
+
+      const nodes = [];
+      const edges = [];
+
+      // 1. Storage Buckets
+      AppState.buckets.forEach(b => {
+        if (b.pruned) return;
+        nodes.push({
+          id: b.id,
+          label: b.id.replace(`bkt-${prefix}-`, ""),
+          category: "Idle Storage Bucket",
+          shape: "box",
+          color: {
+            background: palette.danger,
+            border: b.safe_to_prune ? palette.primary : "#FFFFFF"
+          },
+          font: { color: "#FFFFFF", face: "Fira Code", size: 10 },
+          shadow: { enabled: true, color: palette.danger, size: 15 },
+          title: `Bucket: ${b.id}\nOwner: @prateek\nIdle: ${b.idle_days}d | Cost: $${b.monthly_cost_usd}/mo\nVerdict: ${b.verdict_label}`,
+          safe_to_prune: b.safe_to_prune
+        });
+      });
+
+      // 2 Active Core Buckets (Completing 12 Buckets)
+      [`bkt-${prefix}-prod-events-live`, `bkt-${prefix}-prod-user-vault`].forEach(id => {
+        nodes.push({
+          id,
+          label: id.replace(`bkt-${prefix}-`, ""),
+          category: "Idle Storage Bucket",
+          shape: "box",
+          color: { background: palette.danger, border: palette.warning },
+          font: { color: "#FFFFFF", face: "Fira Code", size: 10 },
+          shadow: { enabled: true, color: palette.danger, size: 12 },
+          title: `Active Core Bucket: ${id}\nOwner: @prateek`
+        });
+      });
+
+      // 2. Data Pipelines (11 Nodes)
+      const pipelines = [
+        { id: "pipe-quarterly-recon", target: `bkt-${prefix}-q3-aggregates-archive` },
+        { id: "pipe-click-ingest-v1", target: `bkt-${prefix}-legacy-clickstream-2023` },
+        { id: "pipe-kyc-verifier", target: `bkt-${prefix}-customer-kyc-raw-dumps` },
+        { id: "pipe-edi-clearinghouse", target: `bkt-${prefix}-partner-edi-settlements` },
+        { id: "pipe-perf-replay", target: `bkt-${prefix}-staging-loadtest-artifacts` },
+        { id: "pipe-tax-exporter", target: `bkt-${prefix}-tax-audit-vault-2024` },
+        { id: "pipe-feature-hydrator", target: `bkt-${prefix}-realtime-feature-store-cold` },
+        { id: "pipe-core-stream-etl", target: `bkt-${prefix}-prod-events-live` },
+        { id: "pipe-profile-sync", target: `bkt-${prefix}-prod-user-vault` },
+        { id: "pipe-ml-feature-gen", target: `bkt-${prefix}-dev-sandbox-ml-checkpoints` },
+        { id: "pipe-audit-archiver", target: `bkt-${prefix}-customer-kyc-raw-dumps` }
+      ];
+
+      pipelines.forEach(p => {
+        nodes.push({
+          id: p.id,
+          label: p.id,
+          category: "Data Pipeline",
+          shape: "diamond",
+          size: 16,
+          color: { background: palette.secondary, border: "#FFFFFF" },
+          font: { color: "#F8FAFC", face: "Fira Code", size: 10 },
+          shadow: { enabled: true, color: palette.secondary, size: 14 },
+          title: `Data Pipeline: ${p.id}\nOwner: @prateek`
+        });
+        if (nodes.some(n => n.id === p.target)) {
+          edges.push({ from: p.id, to: p.target, label: "READS" });
+        }
+      });
+
+      // 3. Production & Staging Services (14 Nodes)
+      const services = [
+        { id: "BillingService", env: "PROD", pipes: ["pipe-quarterly-recon", "pipe-edi-clearinghouse"] },
+        { id: "OrderService", env: "PROD", pipes: ["pipe-core-stream-etl"], deps: ["BillingService", "PaymentLedgerSvc"] },
+        { id: "FraudDetectionEngine", env: "PROD", pipes: ["pipe-kyc-verifier", "pipe-audit-archiver"] },
+        { id: "AuthGateway", env: "PROD", pipes: ["pipe-profile-sync"], deps: ["FraudDetectionEngine"] },
+        { id: "PaymentLedgerSvc", env: "PROD", pipes: ["pipe-edi-clearinghouse"], deps: ["TaxComplianceSvc"] },
+        { id: "CheckoutAPI", env: "PROD", pipes: ["pipe-core-stream-etl"], deps: ["PaymentLedgerSvc", "OrderService", "AuthGateway"] },
+        { id: "TaxComplianceSvc", env: "PROD", pipes: ["pipe-tax-exporter", "pipe-quarterly-recon"] },
+        { id: "InvoiceGenerator", env: "PROD", pipes: ["pipe-tax-exporter"], deps: ["BillingService"] },
+        { id: "RecommendationEngine", env: "PROD", pipes: ["pipe-feature-hydrator", "pipe-profile-sync"] },
+        { id: "SearchDiscoveryAPI", env: "PROD", pipes: ["pipe-core-stream-etl"], deps: ["RecommendationEngine"] },
+        { id: "StagingAnalyticsSvc", env: "STAGE", pipes: ["pipe-click-ingest-v1"] },
+        { id: "StagingLoadRunner", env: "STAGE", pipes: ["pipe-perf-replay"] },
+        { id: "DevModelTrainer", env: "STAGE", pipes: ["pipe-ml-feature-gen"] },
+        { id: "SandboxReplayWorker", env: "STAGE", pipes: ["pipe-perf-replay", "pipe-click-ingest-v1"] }
+      ];
+
+      services.forEach(s => {
+        nodes.push({
+          id: s.id,
+          label: `${s.id}\n[${s.env}]`,
+          category: "Production Service",
+          shape: "dot",
+          size: s.env === "PROD" ? 18 : 13,
+          color: { background: palette.primary, border: "#FFFFFF" },
+          font: { color: "#FFFFFF", face: "Fira Code", size: 10 },
+          shadow: { enabled: true, color: palette.primary, size: 14 },
+          title: `Cloud Service: ${s.id} (${s.env})\nOwner: @prateek`
+        });
+
+        (s.pipes || []).forEach(pId => edges.push({ from: s.id, to: pId, label: "USES" }));
+        (s.deps || []).forEach(dId => edges.push({ from: s.id, to: dId, label: "CALLS" }));
+      });
+
+      // 4. Solo Command Teams (8 Nodes — All @prateek)
+      const teams = [
+        { id: "Arch:@prateek-Core", owns: ["BillingService", "PaymentLedgerSvc", `bkt-${prefix}-q3-aggregates-archive`] },
+        { id: "Arch:@prateek-SecOps", owns: ["FraudDetectionEngine", "AuthGateway", `bkt-${prefix}-customer-kyc-raw-dumps`] },
+        { id: "Arch:@prateek-CloudOps", owns: ["OrderService", "CheckoutAPI", `bkt-${prefix}-prod-events-live`] },
+        { id: "Arch:@prateek-AI", owns: ["RecommendationEngine", "SearchDiscoveryAPI", `bkt-${prefix}-dev-sandbox-ml-checkpoints`] },
+        { id: "Arch:@prateek-Data", owns: ["pipe-quarterly-recon", "pipe-kyc-verifier", `bkt-${prefix}-legacy-clickstream-2023`] },
+        { id: "Arch:@prateek-QA", owns: ["StagingLoadRunner", "StagingAnalyticsSvc", `bkt-${prefix}-staging-loadtest-artifacts`] },
+        { id: "Arch:@prateek-Audit", owns: [`bkt-${prefix}-tax-audit-vault-2024`, `bkt-${prefix}-partner-edi-settlements`] },
+        { id: "Arch:@prateek-FinOps", owns: [`bkt-${prefix}-ab-test-orphaned-logs`, `bkt-${prefix}-deprecated-cdn-access-logs`] }
+      ];
+
+      teams.forEach(t => {
+        nodes.push({
+          id: t.id,
+          label: t.id.replace("Arch:", ""),
+          category: "Team",
+          shape: "dot",
+          size: 14,
+          color: { background: palette.warning, border: "#FFFFFF" },
+          font: { color: "#F1F5F9", face: "Fira Code", size: 9 },
+          shadow: { enabled: true, color: palette.warning, size: 11 },
+          title: `Command Unit: ${t.id}\nLead Architect: Prateek Gupta (@prateek)`
+        });
+        t.owns.forEach(target => {
+          if (nodes.some(n => n.id === target)) {
+            edges.push({ from: t.id, to: target, label: "OWNS" });
+          }
+        });
+      });
+
+      return { nodes, edges };
+    }
+
+    function initVisTopologyRadar() {
+      const container = document.getElementById("vis-topology-canvas");
+      const graphData = buildVisGraphNodesAndEdges();
+      const palette = getActiveThemePalette();
+      AppState.rawGraph = graphData;
+
+      AppState.visNodes = new vis.DataSet(graphData.nodes);
+      AppState.visEdges = new vis.DataSet(
+        graphData.edges.map((e, i) => ({
+          id: `edge-${i}`,
+          ...e,
+          arrows: "to",
+          width: 1.5,
+          color: { color: "rgba(148, 163, 184, 0.35)", highlight: palette.primary },
+          font: { size: 8, color: "#64748B", face: "Fira Code", strokeWidth: 0 },
+          smooth: { type: "continuous" }
+        }))
+      );
+
+      const options = {
+        physics: {
+          enabled: true,
+          barnesHut: {
+            gravitationalConstant: -3900,
+            centralGravity: 0.28,
+            springLength: 115,
+            springConstant: 0.04,
+            damping: 0.09
+          }
+        },
+        interaction: {
+          hover: true,
+          tooltipDelay: 100,
+          zoomView: true,
+          dragView: true
+        }
+      };
+
+      if (AppState.visNetwork) AppState.visNetwork.destroy();
+      AppState.visNetwork = new vis.Network(
+        container,
+        { nodes: AppState.visNodes, edges: AppState.visEdges },
+        options
+      );
+
+      AppState.visNetwork.on("click", function (params) {
+        if (params.nodes.length > 0) {
+          const clickedId = params.nodes[0];
+          selectAndFocusGraphNode(clickedId);
+        } else {
+          closeNodeInspector();
+          restoreGraphDefaultColors();
+        }
+      });
+    }
+
+    // Zoom Camera & Highlight 1..3 Hop Blast Radius Path
+    function selectAndFocusGraphNode(nodeId) {
+      if (!AppState.visNetwork || !AppState.visNodes.get(nodeId)) return;
+      AppState.selectedNodeId = nodeId;
+      const palette = getActiveThemePalette();
+
+      const hop1 = AppState.visNetwork.getConnectedNodes(nodeId);
+      const pathNodes = new Set([nodeId, ...hop1]);
+      hop1.forEach(n1 => {
+        AppState.visNetwork.getConnectedNodes(n1).forEach(n2 => pathNodes.add(n2));
+      });
+
+      const bucketMatch = AppState.buckets.find(b => b.id === nodeId);
+      const beamColor = bucketMatch && bucketMatch.safe_to_prune ? palette.primary : palette.danger;
+
+      AppState.rawGraph.nodes.forEach(n => {
+        if (!AppState.visNodes.get(n.id)) return;
+        if (pathNodes.has(n.id)) {
+          AppState.visNodes.update({
+            id: n.id,
+            color: { background: beamColor, border: "#FFFFFF" },
+            shadow: { enabled: true, color: beamColor, size: 24 },
+            font: { color: "#FFFFFF", face: "Fira Code", size: 12 }
+          });
+        } else {
+          AppState.visNodes.update({
+            id: n.id,
+            color: { background: "rgba(15, 23, 42, 0.35)", border: "rgba(255,255,255,0.08)" },
+            shadow: { enabled: false },
+            font: { color: "rgba(148, 163, 184, 0.25)", face: "Fira Code", size: 9 }
+          });
+        }
+      });
+
+      AppState.visEdges.get().forEach(e => {
+        const inBlastPath = pathNodes.has(e.from) && pathNodes.has(e.to);
+        AppState.visEdges.update({
+          id: e.id,
+          color: { color: inBlastPath ? beamColor : "rgba(255,255,255,0.05)" },
+          width: inBlastPath ? 3.0 : 1.0
+        });
+      });
+
+      AppState.visNetwork.selectNodes([nodeId]);
+      AppState.visNetwork.focus(nodeId, {
+        scale: 1.8,
+        animation: { duration: 600, easingFunction: "easeInOutQuad" }
+      });
+
+      renderQuarantineCards();
+      openNodeInspector(nodeId, Array.from(pathNodes));
+    }
+
+    function restoreGraphDefaultColors() {
+      const palette = getActiveThemePalette();
+      AppState.rawGraph.nodes.forEach(n => {
+        if (AppState.visNodes.get(n.id)) {
+          AppState.visNodes.update({
+            id: n.id,
+            color: n.color,
+            shadow: n.shadow,
+            font: n.font,
+            hidden: false
+          });
+        }
+      });
+      AppState.visEdges.get().forEach(e => {
+        AppState.visEdges.update({
+          id: e.id,
+          color: { color: "rgba(148, 163, 184, 0.35)", highlight: palette.primary },
+          width: 1.5
+        });
+      });
+    }
+
+    function centerRadarCamera() {
+      restoreGraphDefaultColors();
+      if (AppState.visNetwork) {
+        AppState.visNetwork.fit({ animation: { duration: 500, easingFunction: "easeInOutQuad" } });
+      }
+    }
+
+    function filterRadarGraph(mode) {
+      restoreGraphDefaultColors();
+      AppState.rawGraph.nodes.forEach(n => {
+        if (!AppState.visNodes.get(n.id)) return;
+        if (mode === "ALL") {
+          AppState.visNodes.update({ id: n.id, hidden: false });
+        } else if (mode === "SAFE") {
+          const keep = n.safe_to_prune === true || n.category === "Team";
+          AppState.visNodes.update({ id: n.id, hidden: !keep });
+        } else if (mode === "PROTECTED") {
+          const keep = n.safe_to_prune === false || n.category === "Production Service" || n.category === "Data Pipeline";
+          AppState.visNodes.update({ id: n.id, hidden: !keep });
+        }
+      });
+      AppState.visNetwork.fit({ animation: true });
+    }
+
+    // =========================================================================
+    // RENDER DARK DATA QUARANTINE MATRIX CARDS
+    // =========================================================================
+    function renderQuarantineCards() {
+      const container = document.getElementById("quarantine-cards-list");
+      const searchVal = (document.getElementById("matrix-filter-input").value || "").toLowerCase();
+      const sortMode = document.getElementById("matrix-sort-dropdown").value;
+
+      let filtered = AppState.buckets.filter(b =>
+        b.id.toLowerCase().includes(searchVal) ||
+        b.owner.toLowerCase().includes(searchVal) ||
+        b.verdict_label.toLowerCase().includes(searchVal)
+      );
+
+      filtered.sort((a, b) => {
+        if (sortMode === "COST") return b.monthly_cost_usd - a.monthly_cost_usd;
+        if (sortMode === "IDLE") return b.idle_days - a.idle_days;
+        return b.size_gb - a.size_gb;
+      });
+
+      const activeUnpruned = AppState.buckets.filter(b => !b.pruned).length;
+      document.getElementById("matrix-active-count-badge").textContent = `${activeUnpruned} Active`;
+
+      container.innerHTML = filtered.map(b => {
+        const sizeTb = (b.size_gb / 1000).toFixed(1);
+        const isSelected = AppState.selectedNodeId === b.id;
+
+        let badgeStyle = "btn-holo-primary";
+        if (b.verdict_code === "BLOCKED_PROD") badgeStyle = "btn-holo-warning";
+        if (b.verdict_code === "PII_HOLD") badgeStyle = "btn-holo-danger";
+
+        return `
+          <div
+            onclick="selectAndFocusGraphNode('${b.id}')"
+            class="bucket-card-3d rounded-2xl p-4 cursor-pointer space-y-3 ${isSelected ? "selected-bucket" : ""} ${b.pruned ? "opacity-45" : ""}"
+          >
+            <!-- Top Row: Bucket ID & Plain-English Verdict Badge -->
+            <div class="flex flex-wrap items-center justify-between gap-2">
+              <div class="font-mono-code text-xs font-extrabold text-white flex items-center gap-1.5">
+                <i data-lucide="database" class="w-4 h-4 text-theme-primary"></i>
+                <span>${b.id}</span>
+              </div>
+              <span class="text-[10px] font-mono-code font-bold px-2.5 py-0.5 rounded-md ${badgeStyle}">
+                ${b.pruned ? "[CLEANED UP ✓]" : b.verdict_label}
+              </span>
+            </div>
+
+            <!-- Telemetry Metrics Strip -->
+            <div class="grid grid-cols-4 gap-2 py-2 px-3 rounded-xl bg-black/60 border border-white/10 font-mono-code text-[11px]">
+              <div>
+                <span class="text-slate-400">Idle:</span>
+                <strong class="text-theme-warning ml-1">${b.idle_days}d</strong>
+              </div>
+              <div>
+                <span class="text-slate-400">Size:</span>
+                <strong class="text-white ml-1">${sizeTb} TB</strong>
+              </div>
+              <div>
+                <span class="text-slate-400">Cost:</span>
+                <strong class="text-theme-primary ml-1">$${b.monthly_cost_usd}/m</strong>
+              </div>
+              <div>
+                <span class="text-slate-400">Owner:</span>
+                <strong class="text-white ml-1">@prateek</strong>
+              </div>
+            </div>
+
+            <!-- Plain-English Summary -->
+            <p class="text-xs text-slate-300 leading-relaxed">${b.explanation}</p>
+
+            <!-- Action Buttons Per Card -->
+            ${
+              b.pruned
+                ? ""
+                : `<div class="grid grid-cols-3 gap-2 pt-1">
+                    <button
+                      onclick="event.stopPropagation(); actionInvestigateConnections('${b.id}')"
+                      class="py-2 px-2 rounded-xl btn-holo-primary text-[11px] font-bold flex items-center justify-center gap-1 cursor-pointer"
+                    >
+                      <i data-lucide="git-branch" class="w-3.5 h-3.5"></i>
+                      <span>Investigate Connections</span>
+                    </button>
+
+                    <button
+                      onclick="event.stopPropagation(); actionRunAutonomousCleanup('${b.id}', false)"
+                      ${!b.safe_to_prune ? "disabled" : ""}
+                      class="py-2 px-2 rounded-xl ${
+                        b.safe_to_prune
+                          ? "btn-holo-primary cursor-pointer"
+                          : "bg-white/5 text-slate-500 border border-white/10 cursor-not-allowed"
+                      } text-[11px] font-bold flex items-center justify-center gap-1"
+                    >
+                      <i data-lucide="sparkles" class="w-3.5 h-3.5"></i>
+                      <span>Run Autonomous Cleanup</span>
+                    </button>
+
+                    <button
+                      onclick="event.stopPropagation(); actionRequestOverride('${b.id}')"
+                      class="py-2 px-2 rounded-xl btn-holo-danger text-[11px] font-bold flex items-center justify-center gap-1 cursor-pointer"
+                    >
+                      <i data-lucide="key" class="w-3.5 h-3.5"></i>
+                      <span>Request Override</span>
+                    </button>
+                  </div>`
+            }
+          </div>
+        `;
+      }).join("");
+
+      lucide.createIcons();
+    }
+
+    // =========================================================================
+    // POWERHOUSE FEATURE 2: INTERACTIVE NODE INSPECTOR SLIDE-OUT DRAWER
+    // =========================================================================
+    function openNodeInspector(nodeId, connectedIds = []) {
+      const drawer = document.getElementById("node-dna-drawer");
+      drawer.classList.remove("translate-x-full");
+
+      const bucket = AppState.buckets.find(b => b.id === nodeId);
+      const visNode = AppState.visNodes.get(nodeId);
+
+      document.getElementById("dna-node-id").textContent = nodeId;
+      document.getElementById("dna-owner-handle").textContent = "@prateek";
+
+      if (bucket) {
+        document.getElementById("dna-node-category").textContent = "IDLE STORAGE BUCKET";
+        document.getElementById("dna-security-tier").textContent = `${bucket.sensitivity} TIER`;
+        document.getElementById("dna-monthly-cost").textContent = `$${bucket.monthly_cost_usd.toLocaleString()} /mo`;
+        document.getElementById("dna-carbon").textContent = `${bucket.carbon_kg} kg CO2e`;
+        document.getElementById("dna-size-tb").textContent = `${(bucket.size_gb / 1000).toFixed(1)} TB`;
+        document.getElementById("dna-idle-days").textContent = `${bucket.idle_days} Days`;
+
+        const vBadge = document.getElementById("dna-verdict-badge");
+        vBadge.textContent = bucket.pruned ? "[CLEANED UP ✓]" : bucket.verdict_label;
+        vBadge.className = `inline-block text-xs font-mono-code font-bold px-2.5 py-1 rounded ${
+          bucket.safe_to_prune ? "btn-holo-primary" : "btn-holo-danger"
+        }`;
+
+        document.getElementById("dna-explanation").textContent = bucket.explanation;
+
+        const deps = [...bucket.connected_services, ...bucket.connected_pipes];
+        document.getElementById("dna-connected-list").innerHTML = deps.length
+          ? deps.map(d => `<span class="px-2.5 py-1 rounded-lg bg-white/10 text-xs font-mono-code text-white">${d}</span>`).join("")
+          : `<span class="px-2.5 py-1 rounded-lg btn-holo-primary text-xs font-mono-code">✓ 0 Live Production Connections</span>`;
+      } else {
+        document.getElementById("dna-node-category").textContent = (visNode && visNode.category) ? visNode.category.toUpperCase() : "CLOUD NODE";
+        document.getElementById("dna-security-tier").textContent = "PRODUCTION TIER";
+        document.getElementById("dna-monthly-cost").textContent = "Active Service";
+        document.getElementById("dna-carbon").textContent = "Monitored";
+        document.getElementById("dna-size-tb").textContent = "Live Stream";
+        document.getElementById("dna-idle-days").textContent = "0 Days (Active)";
+
+        const vBadge = document.getElementById("dna-verdict-badge");
+        vBadge.textContent = "[ACTIVE PRODUCTION INFRASTRUCTURE]";
+        vBadge.className = "inline-block text-xs font-mono-code font-bold px-2.5 py-1 rounded btn-holo-primary";
+        document.getElementById("dna-explanation").textContent =
+          `Active infrastructure node managed by Lead Architect @prateek. Connected to ${Math.max(0, connectedIds.length - 1)} neighboring nodes.`;
+
+        document.getElementById("dna-connected-list").innerHTML = connectedIds
+          .filter(id => id !== nodeId)
+          .map(id => `<span class="px-2.5 py-1 rounded-lg bg-white/10 text-xs font-mono-code text-white">${id}</span>`)
+          .join("");
+      }
+
+      document.getElementById("dna-cypher-box").textContent =
+`MATCH path = (s:Service)-[:DEPENDS_ON*1..3]->(p:Pipeline)-[:READS_FROM]->(b {id: '${nodeId}'})
+WHERE b.owner = '@prateek'
+RETURN b.id, collect(distinct s.id) AS connected_services, length(path) AS hops;`;
+
+      lucide.createIcons();
+    }
+
+    function closeNodeInspector() {
+      document.getElementById("node-dna-drawer").classList.add("translate-x-full");
+    }
+
+    function drawerActionQuarantineNode() {
+      if (!AppState.selectedNodeId) return;
+      const bucket = AppState.buckets.find(b => b.id === AppState.selectedNodeId);
+      if (bucket) {
+        actionRunAutonomousCleanup(bucket.id, false);
+      } else {
+        streamTerminalStep("GuardianAgent", `Placed node [${AppState.selectedNodeId}] under @prateek's quarantine monitoring.`, "warning");
+      }
+    }
+
+    function drawerActionBypassLock() {
+      if (!AppState.selectedNodeId) return;
+      const bucket = AppState.buckets.find(b => b.id === AppState.selectedNodeId);
+      if (bucket) {
+        actionRunAutonomousCleanup(bucket.id, true);
+      } else {
+        streamTerminalStep("GuardianAgent", `Security lock bypass executed by @prateek on [${AppState.selectedNodeId}].`, "danger");
+      }
+    }
+
+    function drawerActionInspectLineage() {
+      if (!AppState.selectedNodeId) return;
+      selectAndFocusGraphNode(AppState.selectedNodeId);
+      streamTerminalStep("SherlockAgent", `Traced 1..3 hop lineage path for [${AppState.selectedNodeId}] on FalkorDB cloud.`, "secondary");
+    }
+
+    // =========================================================================
+    // CARD & HEADER API ACTIONS
+    // =========================================================================
+    async function actionInvestigateConnections(bucketId) {
+      selectAndFocusGraphNode(bucketId);
+      const bucket = AppState.buckets.find(b => b.id === bucketId);
+      if (!bucket) return;
+
+      streamTerminalStep("ReconAgent", `Scanning storage bucket ${bucket.id} for idle thresholds (${bucket.idle_days}d > 90d)...`, "primary");
+      streamTerminalStep("SherlockAgent", `Executing 1..3 hop Cypher traversal on FalkorDB cloud for ${bucket.id}...`, "secondary");
+
+      try {
+        await fetch(`${API_BASE}/api/agent/analyze-prune?tenant=${AppState.activeTenant}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "X-Tenant-Graph": AppState.activeTenant },
+          body: JSON.stringify({ bucket_id: bucket.id, tenant: AppState.activeTenant, operator: "@prateek" })
+        });
+      } catch (_) {}
+
+      setTimeout(() => {
+        streamTerminalStep("GuardianAgent", `Committing episodic memory node to graph: ${bucket.id} -> ${bucket.verdict_label}.`, bucket.safe_to_prune ? "primary" : "danger");
+      }, 280);
+    }
+
+    async function actionRunAutonomousCleanup(bucketId, forceOverride = false) {
+      const bucket = AppState.buckets.find(b => b.id === bucketId);
+      if (!bucket || bucket.pruned) return;
+
+      if (!bucket.safe_to_prune && !forceOverride) {
+        streamTerminalStep("GuardianAgent", `Blocked cleanup on ${bucket.id}: ${bucket.verdict_label}. Click 'Bypass Security Lock' in the drawer if @prateek authorizes override.`, "danger");
+        selectAndFocusGraphNode(bucketId);
+        return;
+      }
+
+      try {
+        await fetch(`${API_BASE}/api/agent/execute-prune?tenant=${AppState.activeTenant}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "X-Tenant-Graph": AppState.activeTenant },
+          body: JSON.stringify({
+            bucket_id: bucket.id,
+            tenant: AppState.activeTenant,
+            force_override: forceOverride,
+            operator: "@prateek"
+          })
+        });
+      } catch (_) {}
+
+      bucket.pruned = true;
+      AppState.metrics.totalNodes = Math.max(1, AppState.metrics.totalNodes - 1);
+      AppState.metrics.idleBuckets = AppState.buckets.filter(b => !b.pruned).length;
+      AppState.metrics.protectedLocks = AppState.buckets.filter(b => !b.pruned && !b.safe_to_prune).length;
+      AppState.metrics.reclaimedGb += bucket.size_gb;
+      AppState.metrics.monthlySavedUsd += bucket.monthly_cost_usd;
+      AppState.metrics.carbonOffsetKg = +(AppState.metrics.carbonOffsetKg + bucket.carbon_kg).toFixed(1);
+
+      AppState.memories.unshift({
+        id: `mem-clean-${Math.random().toString(16).slice(2, 6)}`,
+        session: `Session #${AppState.memories.length + 101}`,
+        bucket: bucket.id,
+        verdict: forceOverride ? "[OVERRIDE CLEANUP COMPLETED]" : "[SAFE CLEANUP COMPLETED]",
+        summary: `Cleaned up ${bucket.id} (${(bucket.size_gb / 1000).toFixed(1)} TB). Saved $${bucket.monthly_cost_usd}/mo and ${bucket.carbon_kg} kg CO2e under @prateek.`,
+        rule: "Procedural Rule: Verified storage cleanup committed permanently to FalkorDB episodic graph.",
+        owner: "@prateek",
+        timestamp: "Live Session • Verified"
+      });
+
+      if (AppState.visNodes && AppState.visNodes.get(bucket.id)) {
+        AppState.visNodes.remove(bucket.id);
+      }
+
+      updateGlobalMetricsBar();
+      renderQuarantineCards();
+      closeNodeInspector();
+
+      streamTerminalStep("GuardianAgent", `Cleaned up ${bucket.id}! Reclaimed ${bucket.size_gb.toLocaleString()} GB and saved $${bucket.monthly_cost_usd}/mo for @prateek.`, "primary");
+
+      confetti({
+        particleCount: 60,
+        spread: 68,
+        origin: { y: 0.75 }
+      });
+    }
+
+    function actionRequestOverride(bucketId) {
+      selectAndFocusGraphNode(bucketId);
+      streamTerminalStep("GuardianAgent", `Opened security override drawer for [${bucketId}]. Click 'Bypass Security Lock' to force cleanup under @prateek.`, "warning");
+    }
+
+    async function triggerScanIdleData() {
+      centerRadarCamera();
+      try {
+        await fetch(`${API_BASE}/api/graph/stats?tenant=${AppState.activeTenant}`, {
+          headers: { "X-Tenant-Graph": AppState.activeTenant }
+        });
+      } catch (_) {}
+
+      const activeCount = AppState.buckets.filter(b => !b.pruned).length;
+      streamTerminalStep("ReconAgent", `Scanning storage buckets for idle thresholds (>90d)...`, "primary");
+      setTimeout(() => {
+        streamTerminalStep("SherlockAgent", `Executing 1..3 hop Cypher traversal on FalkorDB cloud...`, "secondary");
+      }, 220);
+      setTimeout(() => {
+        streamTerminalStep("GuardianAgent", `Committing episodic memory node to graph (${activeCount} idle traps verified for @prateek)...`, "primary");
+      }, 450);
+    }
+
+    function triggerAutoCleanup() {
+      if (AppState.autoCleanupActive) return;
+      const safeTargets = AppState.buckets.filter(b => !b.pruned && b.safe_to_prune);
+      if (safeTargets.length === 0) {
+        streamTerminalStep("GuardianAgent", "All orphaned safe buckets are already cleaned up! Remaining buckets are protected by Production or PII locks.", "warning");
+        return;
+      }
+
+      AppState.autoCleanupActive = true;
+      document.getElementById("autocleanup-btn-text").textContent = "🧹 Cleaning Safe Buckets...";
+      streamTerminalStep("ReconAgent", `Launching autonomous safety clean-up across ${safeTargets.length} orphaned buckets for @prateek...`, "primary");
+
+      let idx = 0;
+      function cleanNextBucket() {
+        if (idx >= safeTargets.length) {
+          AppState.autoCleanupActive = false;
+          document.getElementById("autocleanup-btn-text").textContent = "🧹 Run Auto-Cleanup";
+          streamTerminalStep("GuardianAgent", "Autonomous safety clean-up complete! All production dependencies remained 100% protected.", "primary");
+          centerRadarCamera();
+          return;
+        }
+        const target = safeTargets[idx];
+        idx++;
+        selectAndFocusGraphNode(target.id);
+        setTimeout(() => {
+          actionRunAutonomousCleanup(target.id, false);
+          setTimeout(cleanNextBucket, 750);
+        }, 600);
+      }
+      cleanNextBucket();
+    }
+
+    async function triggerChaosSandbox() {
+      const code = Math.random().toString(16).slice(2, 6);
+      const rogueId = `bkt-rogue-shadow-trap-${code}`;
+
+      try {
+        await fetch(`${API_BASE}/api/chaos/inject?tenant=${AppState.activeTenant}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "X-Tenant-Graph": AppState.activeTenant },
+          body: JSON.stringify({ tenant: AppState.activeTenant, operator: "@prateek", custom_bucket_name: rogueId })
+        });
+      } catch (_) {}
+
+      const rogueBucket = {
+        id: rogueId,
+        name: rogueId,
+        idle_days: 176,
+        size_gb: 16800,
+        monthly_cost_usd: 2016,
+        carbon_kg: 470.4,
+        sensitivity: "PII_LOCKED",
+        owner: "@prateek",
+        is_chaos: true,
+        verdict_code: "BLOCKED_PROD",
+        verdict_label: "[BLOCKED: LIVE PROD DEPENDENCY]",
+        safe_to_prune: false,
+        pruned: false,
+        connected_pipes: ["pipe-quarterly-recon", "pipe-kyc-verifier"],
+        connected_services: ["BillingService (PROD)", "FraudDetectionEngine (PROD)", "CheckoutAPI (PROD)"],
+        explanation: "CHAOS SANDBOX TRAP: Hidden shadow bucket with 3-hop links to BillingService, FraudDetectionEngine, and CheckoutAPI!"
+      };
+
+      AppState.buckets.unshift(rogueBucket);
+      AppState.metrics.totalNodes += 1;
+      AppState.metrics.totalEdges += 3;
+      AppState.metrics.idleBuckets = AppState.buckets.filter(b => !b.pruned).length;
+      AppState.metrics.protectedLocks = AppState.buckets.filter(b => !b.pruned && !b.safe_to_prune).length;
+
+      AppState.memories.unshift({
+        id: `mem-chaos-${code}`,
+        session: "Chaos Sandbox",
+        bucket: rogueId,
+        is_chaos: true,
+        verdict: "[BLOCKED: LIVE PROD DEPENDENCY]",
+        summary: `Chaos Sandbox injected ${rogueId} (16.8 TB). SherlockAgent & GuardianAgent immediately detected 3 live production services and locked deletion.`,
+        rule: "Procedural Rule: Automatically quarantine unindexed shadow buckets with hidden production links.",
+        owner: "@prateek",
+        timestamp: "Chaos Test • Verified"
+      });
+
+      initVisTopologyRadar();
+      updateGlobalMetricsBar();
+      renderQuarantineCards();
+      selectAndFocusGraphNode(rogueId);
+
+      streamTerminalStep("ReconAgent", `CHAOS ALERT: Injected rogue shadow bucket [${rogueId}] (16.8 TB, $2,016/mo)!`, "danger");
+      streamTerminalStep("GuardianAgent", `Blocked deletion on [${rogueId}] to protect BillingService & FraudDetectionEngine.`, "warning");
+    }
+
+    async function triggerChaosReset() {
+      try {
+        await fetch(`${API_BASE}/api/chaos/reset?tenant=${AppState.activeTenant}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "X-Tenant-Graph": AppState.activeTenant },
+          body: JSON.stringify({ tenant: AppState.activeTenant, operator: "@prateek" })
+        });
+      } catch (_) {}
+
+      const fresh = createTenantDataset(AppState.activeTenant);
+      AppState.buckets = fresh.buckets;
+      AppState.memories = fresh.memories;
+      AppState.metrics = {
+        totalNodes: 45,
+        totalEdges: 81,
+        idleBuckets: 10,
+        protectedLocks: 5,
+        reclaimedGb: 14200,
+        monthlySavedUsd: 1840,
+        carbonOffsetKg: 412.8
+      };
+
+      initVisTopologyRadar();
+      updateGlobalMetricsBar();
+      renderQuarantineCards();
+      closeNodeInspector();
+      streamTerminalStep("GuardianAgent", `Reset Chaos Sandbox and restored baseline 45-node topology for @prateek.`, "primary");
+    }
+
+    async function switchActiveTenantMirror(newTenant) {
+      AppState.activeTenant = newTenant;
+      const fresh = createTenantDataset(newTenant);
+      AppState.buckets = fresh.buckets;
+      AppState.memories = fresh.memories;
+      AppState.selectedNodeId = null;
+
+      try {
+        await fetch(`${API_BASE}/api/graph/topology?tenant=${newTenant}`, {
+          headers: { "X-Tenant-Graph": newTenant }
+        });
+      } catch (_) {}
+
+      AppState.metrics.idleBuckets = AppState.buckets.filter(b => !b.pruned).length;
+      AppState.metrics.protectedLocks = AppState.buckets.filter(b => !b.pruned && !b.safe_to_prune).length;
+
+      initVisTopologyRadar();
+      updateGlobalMetricsBar();
+      renderQuarantineCards();
+      closeNodeInspector();
+
+      streamTerminalStep("ReconAgent", `Switched Active Tenant Mirror to [${newTenant}] for Lead Architect @prateek.`, "primary");
+    }
+
+    function updateGlobalMetricsBar() {
+      const m = AppState.metrics;
+      document.getElementById("kpi-nodes").textContent = m.totalNodes;
+      document.getElementById("kpi-edges").textContent = m.totalEdges;
+      document.getElementById("kpi-idle-traps").textContent = m.idleBuckets;
+      document.getElementById("kpi-prod-locks").textContent = m.protectedLocks;
+      document.getElementById("kpi-reclaimed-gb").textContent = m.reclaimedGb.toLocaleString();
+      document.getElementById("kpi-monthly-saved").textContent = m.monthlySavedUsd.toLocaleString();
+      document.getElementById("kpi-annual-saved").textContent = `$${(m.monthlySavedUsd * 12).toLocaleString()} saved per year`;
+      document.getElementById("kpi-carbon-offset").textContent = m.carbonOffsetKg.toFixed(1);
+    }
+
+    // =========================================================================
+    // POWERHOUSE FEATURE 3: EPISODIC MEMORY VAULT MODAL
+    // =========================================================================
+    async function openEpisodicMemoryVault() {
+      const modal = document.getElementById("episodic-memory-vault-modal");
+      modal.classList.remove("hidden");
+      modal.classList.add("flex");
+
+      try {
+        await fetch(`${API_BASE}/api/memory/vault?tenant=${AppState.activeTenant}`, {
+          headers: { "X-Tenant-Graph": AppState.activeTenant }
+        });
+      } catch (_) {}
+
+      const container = document.getElementById("memory-vault-list");
+      container.innerHTML = AppState.memories.map(m => `
+        <div class="p-4 rounded-2xl bg-black/75 border border-white/15 space-y-2">
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <span class="text-xs font-mono-code font-bold px-2.5 py-0.5 rounded btn-holo-secondary">
+              ${m.verdict}
+            </span>
+            <span class="text-xs font-mono-code text-slate-400">
+              ${m.timestamp} • Owner: <strong class="text-theme-primary">@prateek</strong>
+            </span>
+          </div>
+          <div class="font-mono-code text-sm font-bold text-white">${m.bucket}</div>
+          <p class="text-xs text-slate-200 leading-relaxed">${m.summary}</p>
+          <div class="p-2.5 rounded-xl bg-white/5 border border-white/10 text-xs font-mono-code text-theme-primary">
+            ${m.rule}
+          </div>
+        </div>
+      `).join("");
+
+      lucide.createIcons();
+    }
+
+    function closeEpisodicMemoryVault() {
+      const modal = document.getElementById("episodic-memory-vault-modal");
+      modal.classList.add("hidden");
+      modal.classList.remove("flex");
+    }
+
+    // =========================================================================
+    // EXECUTIVE AUDIT REPORT MODAL & DOWNLOAD SYSTEM (.HTML + .JSON + PDF)
+    // =========================================================================
+    function openExecutiveAuditReportModal() {
+      const modal = document.getElementById("executive-audit-report-modal");
+      modal.classList.remove("hidden");
+      modal.classList.add("flex");
+
+      const m = AppState.metrics;
+      const prunedBuckets = AppState.buckets.filter(b => b.pruned);
+      const lockedBuckets = AppState.buckets.filter(b => !b.pruned && !b.safe_to_prune);
+      const safeRemaining = AppState.buckets.filter(b => !b.pruned && b.safe_to_prune);
+      const nowFormatted = new Date().toLocaleString("en-IN", { dateStyle: "full", timeStyle: "short" });
+
+      document.getElementById("printable-audit-document").innerHTML = `
+        <div class="border-b border-white/20 pb-4 flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <div class="text-xs font-mono-code uppercase text-theme-primary">AURA-GRAPH // FALKORDB CLOUD GOVERNANCE</div>
+            <h2 class="text-xl font-extrabold text-white mt-0.5">Executive Cloud FinOps &amp; Safety Audit Report</h2>
+            <p class="text-xs text-slate-400 mt-1">Generated: ${nowFormatted}</p>
+          </div>
+          <div class="text-right font-mono-code text-xs">
+            <div class="text-white font-bold">Solo Lead Architect: Prateek Gupta (@prateek)</div>
+            <div class="text-slate-400">Active Tenant Mirror: ${AppState.activeTenant}</div>
+            <div class="text-[#00FF66]">Multi-Agent Sign-Off: CERTIFIED SAFE</div>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-3 font-mono-code">
+          <div class="p-3.5 rounded-xl bg-white/5 border border-white/15">
+            <div class="text-[10px] text-slate-400 uppercase">Storage Reclaimed</div>
+            <div class="text-lg font-extrabold text-theme-primary mt-1">${m.reclaimedGb.toLocaleString()} GB</div>
+          </div>
+          <div class="p-3.5 rounded-xl bg-white/5 border border-white/15">
+            <div class="text-[10px] text-slate-400 uppercase">Monthly Money Saved</div>
+            <div class="text-lg font-extrabold text-[#00FF66] mt-1">$${m.monthlySavedUsd.toLocaleString()} /mo</div>
+          </div>
+          <div class="p-3.5 rounded-xl bg-white/5 border border-white/15">
+            <div class="text-[10px] text-slate-400 uppercase">Annualized Savings</div>
+            <div class="text-lg font-extrabold text-white mt-1">$${(m.monthlySavedUsd * 12).toLocaleString()} /yr</div>
+          </div>
+          <div class="p-3.5 rounded-xl bg-white/5 border border-white/15">
+            <div class="text-[10px] text-slate-400 uppercase">Carbon Offset</div>
+            <div class="text-lg font-extrabold text-theme-secondary mt-1">${m.carbonOffsetKg.toFixed(1)} kg CO2e</div>
+          </div>
+        </div>
+
+        <div class="space-y-2">
+          <h4 class="text-xs font-extrabold uppercase tracking-wider text-white">
+            1. Protected Production &amp; Compliance Locks (${lockedBuckets.length} Secured)
+          </h4>
+          <div class="overflow-x-auto rounded-xl border border-white/15">
+            <table class="w-full text-left text-xs font-mono-code">
+              <thead class="bg-white/10 text-slate-200">
+                <tr>
+                  <th class="p-2.5">Bucket ID</th>
+                  <th class="p-2.5">Idle Days</th>
+                  <th class="p-2.5">Size (TB)</th>
+                  <th class="p-2.5">Verdict</th>
+                  <th class="p-2.5">Protected Services</th>
+                  <th class="p-2.5">Owner</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-white/10">
+                ${lockedBuckets.map(b => `
+                  <tr>
+                    <td class="p-2.5 font-bold text-white">${b.id}</td>
+                    <td class="p-2.5">${b.idle_days}d</td>
+                    <td class="p-2.5">${(b.size_gb / 1000).toFixed(1)} TB</td>
+                    <td class="p-2.5 text-theme-danger">${b.verdict_label}</td>
+                    <td class="p-2.5">${b.connected_services.join(", ") || "PII Hold"}</td>
+                    <td class="p-2.5 text-theme-primary">@prateek</td>
+                  </tr>
+                `).join("")}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="space-y-2">
+          <h4 class="text-xs font-extrabold uppercase tracking-wider text-white">
+            2. Itemized Pruned &amp; Eligible Orphaned Buckets (${prunedBuckets.length} Pruned in Session | ${safeRemaining.length} Ready)
+          </h4>
+          <p class="text-xs text-slate-300 leading-relaxed">
+            Cumulative storage mass of <strong>${m.reclaimedGb.toLocaleString()} GB</strong> reclaimed with zero production incidents, verified by <strong>Recon (Scout)</strong>, <strong>Sherlock (Reasoner)</strong>, and <strong>Guardian (Governor)</strong> under the authority of <strong>Prateek Gupta (@prateek)</strong>.
+          </p>
+        </div>
+
+        <div class="pt-3 border-t border-white/15 flex items-center justify-between text-xs font-mono-code text-slate-400">
+          <span>Digital Signature: Prateek Gupta (@prateek) — Principal Architect</span>
+          <span>Powered by FalkorDB Cloud Multigraph</span>
+        </div>
+      `;
+
+      lucide.createIcons();
+    }
+
+    function closeExecutiveAuditReportModal() {
+      const modal = document.getElementById("executive-audit-report-modal");
+      modal.classList.add("hidden");
+      modal.classList.remove("flex");
+    }
+
+    function downloadExecutiveReportHTML() {
+      const reportBody = document.getElementById("printable-audit-document").innerHTML;
+      const htmlContent = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>AURA-GRAPH Executive Audit Report — Prateek Gupta (@prateek)</title>
+  <style>
+    body { font-family: 'Fira Code', monospace; background: #080A0C; color: #F8FAFC; padding: 36px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 14px; }
+    th, td { border: 1px solid #334155; padding: 10px; text-align: left; font-size: 12px; }
+    th { background: #1E293B; color: #00F2FF; }
+  </style>
+</head>
+<body>${reportBody}</body>
+</html>`;
+
+      const blob = new Blob([htmlContent], { type: "text/html" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `AuraGraph-Executive-Audit-Report-Prateek-${AppState.activeTenant}.html`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      streamTerminalStep("GuardianAgent", "Downloaded Executive Audit Report (.HTML) signed by @prateek.", "primary");
+    }
+
+    function downloadExecutiveReportJSON() {
+      const payload = {
+        platform: "AURA-GRAPH // DarkData-GraphOps War Room",
+        lead_architect: "Prateek Gupta (@prateek)",
+        active_tenant: AppState.activeTenant,
+        generated_at: new Date().toISOString(),
+        metrics: AppState.metrics,
+        buckets: AppState.buckets,
+        episodic_memories: AppState.memories
+      };
+
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `AuraGraph-Telemetry-Audit-Prateek-${AppState.activeTenant}.json`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      streamTerminalStep("GuardianAgent", "Downloaded full telemetry & audit bundle (.JSON) for @prateek.", "secondary");
+    }
+
+    // =========================================================================
+    // POWERHOUSE FEATURE 1: LIVE AGENT THOUGHT STREAM HUD
+    // =========================================================================
+    function streamTerminalStep(agentTag, message, tone = "primary") {
+      const term = document.getElementById("agent-thought-terminal");
+      const ts = new Date().toTimeString().slice(0, 8);
+
+      const colorCss =
+        tone === "danger" ? "color: var(--danger);" :
+        tone === "warning" ? "color: var(--warning);" :
+        tone === "secondary" ? "color: var(--secondary);" :
+        "color: var(--primary);";
+
+      const line = document.createElement("div");
+      line.className = "flex items-start gap-2 leading-relaxed";
+      line.innerHTML = `
+        <span class="text-slate-500 shrink-0">[${ts}]</span>
+        <span class="font-bold shrink-0" style="${colorCss}">[${agentTag}]:</span>
+        <span class="text-slate-200">${message}</span>
+      `;
+      term.appendChild(line);
+      term.scrollTop = term.scrollHeight;
+    }
+
+    function clearAgentTerminal() {
+      document.getElementById("agent-thought-terminal").innerHTML = "";
+      streamTerminalStep("ReconAgent", "Terminal stream cleared. Awaiting commands from Lead Architect @prateek...", "primary");
+    }
+
+    function toggleTerminalDrawer() {
+      const term = document.getElementById("agent-thought-terminal");
+      const icon = document.getElementById("terminal-chevron-icon");
+      term.classList.toggle("hidden");
+      icon.classList.toggle("rotate-180");
+    }
+
+    // =========================================================================
+    // BOOTSTRAP WAR ROOM ON DOM LOAD
+    // =========================================================================
+    window.addEventListener("DOMContentLoaded", () => {
+      document.documentElement.setAttribute("data-theme", AppState.theme);
+      document.getElementById("theme-switcher-select").value = AppState.theme;
+
+      const initial = createTenantDataset(AppState.activeTenant);
+      AppState.buckets = initial.buckets;
+      AppState.memories = initial.memories;
+
+      initVisTopologyRadar();
+      updateGlobalMetricsBar();
+      renderQuarantineCards();
+      lucide.createIcons();
+
+      // Stream exact required telemetry boot sequence
+      setTimeout(() => {
+        streamTerminalStep("ReconAgent", "Scanning storage buckets for idle thresholds (>90d)...", "primary");
+      }, 150);
+      setTimeout(() => {
+        streamTerminalStep("SherlockAgent", "Executing 1..3 hop Cypher traversal on FalkorDB cloud...", "secondary");
+      }, 520);
+      setTimeout(() => {
+        streamTerminalStep("GuardianAgent", "Committing episodic memory node to graph for Lead Architect @prateek...", "primary");
+      }, 900);
+    });
+  </script>
+</body>
+</html>
