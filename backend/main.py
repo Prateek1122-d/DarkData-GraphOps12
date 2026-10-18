@@ -915,7 +915,12 @@ class SherlockReasonerAgent:
         )
         graph_result, exec_ms = cloud_pool.run_cypher(tenant, cypher_query)
         rows = getattr(graph_result, "result_set", []) or [] if graph_result is not None else []
-        graph_reasoning_used = graph_result is not None and bool(rows)
+        graph_reasoning_used = (
+    graph_result is not None
+    and bool(rows)
+    and len(rows[0]) >= 4
+    and bool(rows[0][0])
+)
 
         if graph_reasoning_used:
             row = rows[0] if rows else []
