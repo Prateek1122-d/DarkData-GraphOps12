@@ -137,7 +137,10 @@
         0 0 22px -4px rgba(var(--primary-rgb), 0.12),
         inset 0 1px 0 0 rgba(255, 255, 255, 0.12),
         inset 0 0 24px rgba(var(--primary-rgb), 0.04);
-      transition: all 260ms cubic-bezier(0.22, 1, 0.36, 1);
+      /* Animate only visual properties; avoid transitioning canvas/compositing properties. */
+      transition:
+        border-color 260ms cubic-bezier(0.22, 1, 0.36, 1),
+        box-shadow 260ms cubic-bezier(0.22, 1, 0.36, 1);
     }
 
     .holo-panel:hover {
@@ -308,15 +311,10 @@
       outline: none;
     }
 
+    /* Hover tooltips are disabled while isolating the Vis.js hover crash. */
     div.vis-tooltip {
-      background: rgba(8, 10, 12, 0.96) !important;
-      border: 1px solid var(--primary) !important;
-      border-radius: 10px !important;
-      color: #FFFFFF !important;
-      font-family: 'Fira Code', monospace !important;
-      font-size: 11px !important;
-      padding: 10px 12px !important;
-      box-shadow: 0 0 25px rgba(var(--primary-rgb), 0.4) !important;
+      display: none !important;
+      pointer-events: none !important;
     }
 
     /* Print-Ready Executive Audit Report Styles */
@@ -1419,10 +1417,16 @@
           }
         },
         interaction: {
-          hover: true,
-          tooltipDelay: 100,
+          /*
+           * Disable Vis.js hover processing and tooltip creation.
+           * Click inspection, zoom and drag remain available.
+           */
+          hover: false,
+          tooltipDelay: 0,
           zoomView: true,
-          dragView: true
+          dragView: true,
+          hideEdgesOnDrag: false,
+          hideNodesOnDrag: false
         }
       };
 
