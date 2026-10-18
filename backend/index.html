@@ -958,7 +958,7 @@
           </button>
 
           <button
-            onclick="printExecutiveAuditReport()"
+            onclick="window.print()"
             class="px-5 py-2 rounded-xl btn-holo-primary text-xs font-extrabold flex items-center gap-1.5 cursor-pointer"
           >
             <i data-lucide="printer" class="w-4 h-4"></i>
@@ -1238,13 +1238,12 @@
     }
 
     function applyTacticalTheme(themeName) {
-      streamTerminalStep("UIAgent", `Applying [${String(themeName).toUpperCase()}] theme...`, "secondary");
       AppState.theme = themeName;
       document.documentElement.setAttribute("data-theme", themeName);
       localStorage.setItem("auragraph_vip_theme", themeName);
       document.getElementById("theme-switcher-select").value = themeName;
       initVisTopologyRadar();
-      streamTerminalStep("UIAgent", `Theme applied successfully: [${themeName.toUpperCase()}].`, "primary");
+      streamTerminalStep("GuardianAgent", `Switched War Room tactical palette to [${themeName.toUpperCase()}] for @prateek.`, "primary");
     }
 
     // =========================================================================
@@ -1547,20 +1546,9 @@
 
     function restoreGraphDefaultColors() {
       const palette = getActiveThemePalette();
-      const nodes = AppState.rawGraph && Array.isArray(AppState.rawGraph.nodes) ? AppState.rawGraph.nodes : null;
-      const visNodes = AppState.visNodes;
-      const visEdges = AppState.visEdges;
-
-      // The graph may still be loading while dashboard actions are already available.
-      // Treat an uninitialized vis-data store as a no-op instead of crashing the action.
-      if (!nodes || !visNodes || typeof visNodes.get !== "function" || typeof visNodes.update !== "function" ||
-          !visEdges || typeof visEdges.get !== "function" || typeof visEdges.update !== "function") {
-        return false;
-      }
-
-      nodes.forEach(n => {
-        if (visNodes.get(n.id)) {
-          visNodes.update({
+      AppState.rawGraph.nodes.forEach(n => {
+        if (AppState.visNodes.get(n.id)) {
+          AppState.visNodes.update({
             id: n.id,
             color: n.color,
             shadow: n.shadow,
@@ -1569,32 +1557,24 @@
           });
         }
       });
-      visEdges.get().forEach(e => {
-        visEdges.update({
+      AppState.visEdges.get().forEach(e => {
+        AppState.visEdges.update({
           id: e.id,
           color: { color: "rgba(148, 163, 184, 0.35)", highlight: palette.primary },
           width: 1.5
         });
       });
-      return true;
     }
 
     function centerRadarCamera() {
-      const graphRestored = restoreGraphDefaultColors();
-      if (AppState.visNetwork && typeof AppState.visNetwork.fit === "function") {
+      restoreGraphDefaultColors();
+      if (AppState.visNetwork) {
         AppState.visNetwork.fit({ animation: { duration: 500, easingFunction: "easeInOutQuad" } });
-        streamTerminalStep("UIAgent", graphRestored ? "Graph camera centered and default colors restored." : "Graph is still initializing; continuing scan without camera reset.", graphRestored ? "primary" : "secondary");
-      } else {
-        streamTerminalStep("UIAgent", "Graph camera not ready; continuing scan without camera reset.", "secondary");
       }
     }
 
     function filterRadarGraph(mode) {
-      const graphReady = restoreGraphDefaultColors();
-      if (!graphReady) {
-        streamTerminalStep("UIAgent", `Graph filter [${mode}] unavailable: graph is still initializing.`, "warning");
-        return;
-      }
+      restoreGraphDefaultColors();
       AppState.rawGraph.nodes.forEach(n => {
         if (!AppState.visNodes.get(n.id)) return;
         if (mode === "ALL") {
@@ -1607,13 +1587,7 @@
           AppState.visNodes.update({ id: n.id, hidden: !keep });
         }
       });
-      if (AppState.visNetwork) {
-        AppState.visNetwork.fit({ animation: true });
-        const visible = AppState.visNodes.get().filter(node => !node.hidden).length;
-        streamTerminalStep("UIAgent", `Graph filter [${mode}] applied. Visible nodes: ${visible}.`, "primary");
-      } else {
-        streamTerminalStep("UIAgent", `Graph filter [${mode}] could not run: graph network is not initialized.`, "warning");
-      }
+      AppState.visNetwork.fit({ animation: true });
     }
 
     // =========================================================================
@@ -1793,105 +1767,75 @@ RETURN b.id, collect(distinct s.id) AS connected_services, length(path) AS hops;
 
     function closeNodeInspector() {
       document.getElementById("node-dna-drawer").classList.add("translate-x-full");
-      streamTerminalStep("UIAgent", "Node inspector closed.", "secondary");
     }
 
-    async function drawerActionQuarantineNode() {
-      const nodeId = AppState.selectedNodeId;
-      if (!nodeId) {
-        streamTerminalStep("GuardianAgent", "Select a graph node first.", "warning");
-        return;
+    function drawerActionQuarantineNode() {
+      if (!AppState.selectedNodeId) return;
+      const bucket = AppState.buckets.find(b => b.id === AppState.selectedNodeId);
+      if (bucket) {
+        actionRunAutonomousCleanup(bucket.id, false);
+      } else {
+        streamTerminalStep("GuardianAgent", `Placed node [${AppState.selectedNodeId}] under @prateek's quarantine monitoring.`, "warning");
       }
-      const bucket = AppState.buckets.find(b => b.id === nodeId);
-      if (!bucket) {
-        streamTerminalStep("GuardianAgent", `Quarantine is not supported for node type [${nodeId}]. No change was made.`, "warning");
-        showActionNotice("Not applicable", "Only storage bucket nodes can be quarantined in this version.", "warning");
-        return;
-      }
-      const ok = await actionRunAutonomousCleanup(bucket.id, false);
-      showActionNotice(ok ? "Action completed" : "Action not completed", ok ? `${bucket.id} was marked pruned in graph metadata.` : `The backend did not confirm quarantine for ${bucket.id}. Check the terminal for details.`, ok ? "success" : "error");
     }
 
-    async function drawerActionBypassLock() {
-      const nodeId = AppState.selectedNodeId;
-      if (!nodeId) {
-        streamTerminalStep("GuardianAgent", "Select a graph node first.", "warning");
-        return;
+    function drawerActionBypassLock() {
+      if (!AppState.selectedNodeId) return;
+      const bucket = AppState.buckets.find(b => b.id === AppState.selectedNodeId);
+      if (bucket) {
+        actionRunAutonomousCleanup(bucket.id, true);
+      } else {
+        streamTerminalStep("GuardianAgent", `Security lock bypass executed by @prateek on [${AppState.selectedNodeId}].`, "danger");
       }
-      const bucket = AppState.buckets.find(b => b.id === nodeId);
-      if (!bucket) {
-        streamTerminalStep("GuardianAgent", `Security override is not supported for node [${nodeId}]. No change was made.`, "warning");
-        showActionNotice("Not applicable", "Security override is available only for storage bucket nodes.", "warning");
-        return;
-      }
-      const ok = await actionRunAutonomousCleanup(bucket.id, true);
-      showActionNotice(ok ? "Override completed" : "Override not completed", ok ? `${bucket.id} metadata was updated after backend confirmation.` : "The backend did not confirm the override. Verify the admin key and server configuration.", ok ? "success" : "error");
     }
 
     async function drawerActionInspectLineage() {
       const nodeId = AppState.selectedNodeId;
-      if (!nodeId) {
-        streamTerminalStep("SherlockAgent", "Select a graph node first.", "warning");
-        return;
-      }
-      selectAndFocusGraphNode(nodeId);
-      const bucket = AppState.buckets.find(b => b.id === nodeId);
+      if (!nodeId) return;
+
+      const bucket = AppState.buckets.find(b => b.id === nodeId || b.name === nodeId);
       if (!bucket) {
-        const neighbors = AppState.apiGraphTopology?.edges?.filter(e => e.from === nodeId || e.to === nodeId) || [];
-        showActionNotice("Node lineage", neighbors.length ? neighbors.map(e => `${e.from}  →  ${e.to} (${e.label || "RELATED"})`).join("\n") : "No relationship records are available for this node.", "info");
+        streamTerminalStep("SherlockAgent", `Lineage inspection requires a storage bucket. Selected node: ${nodeId}.`, "warning");
         return;
       }
+
+      selectAndFocusGraphNode(nodeId);
+      streamTerminalStep("SherlockAgent", `Requesting live lineage context for ${bucket.id}...`, "secondary");
+
       try {
-        const response = await fetch(`${API_BASE}/api/graphrag/context/${encodeURIComponent(nodeId)}?tenant=${encodeURIComponent(AppState.activeTenant)}`, { headers: { "X-Tenant-Graph": AppState.activeTenant } });
+        const tenant = AppState.activeTenant;
+        const response = await fetch(
+          `${API_BASE}/api/graphrag/context/${encodeURIComponent(bucket.id)}?tenant=${encodeURIComponent(tenant)}`,
+          { headers: { "Accept": "application/json", "X-Tenant-Graph": tenant } }
+        );
         const result = await response.json().catch(() => ({}));
-        if (!response.ok) throw new Error(result.detail || `Lineage request failed (${response.status})`);
-        const services = result.sherlock_blast_radius?.impacted_production_services || [];
-        const pipes = result.sherlock_blast_radius?.connected_pipelines || [];
-        const details = [`Bucket: ${nodeId}`, `Verdict: ${result.sherlock_blast_radius?.verdict_label || bucket.verdict_label}`, `Services: ${services.join(", ") || "None reported"}`, `Pipelines: ${pipes.join(", ") || "None reported"}`].join("\n");
-        showActionNotice("Lineage retrieved from backend", details, "success");
-        streamTerminalStep("SherlockAgent", `Backend lineage retrieved for ${nodeId}.`, "secondary");
+        if (!response.ok) {
+          const detail = typeof result.detail === "string" ? result.detail : `HTTP ${response.status}`;
+          throw new Error(detail);
+        }
+
+        const trace = result.sherlock_blast_radius || {};
+        const prod = Array.isArray(trace.prod_services) ? trace.prod_services : [];
+        const staging = Array.isArray(trace.staging_services) ? trace.staging_services : [];
+        const pipes = Array.isArray(trace.connected_pipes) ? trace.connected_pipes : [];
+        const pipelineIds = Array.isArray(trace.pipelines) ? trace.pipelines : [];
+        const services = [...new Set([...prod, ...staging])];
+        const verdict = trace.verdict_label || trace.verdict_code || "No verdict returned";
+
+        streamTerminalStep("SherlockAgent", `Lineage verdict for ${bucket.id}: ${verdict}.`, trace.safe_to_prune ? "primary" : "danger");
+        streamTerminalStep("SherlockAgent", `Production services (${prod.length}): ${prod.join(", ") || "None reported"}.`, prod.length ? "danger" : "secondary");
+        streamTerminalStep("SherlockAgent", `Other impacted services (${staging.length}): ${staging.join(", ") || "None reported"}.`, "secondary");
+        streamTerminalStep("SherlockAgent", `Pipelines (${pipelineIds.length || pipes.length}): ${[...new Set([...pipelineIds, ...pipes])].join(", ") || "None reported"}.`, "secondary");
+        streamTerminalStep("SherlockAgent", `Dependency depth: ${trace.max_hops ?? 0} hop(s). Source: ${trace.reasoning_source || "not specified"}.`, "secondary");
+
+        if (prod.length) {
+          streamTerminalStep("GuardianAgent", `SECURITY LOCK ACTIVE: ${prod.join(", ")} depend on ${bucket.id}. Quarantine/cleanup remains blocked.`, "danger");
+        } else if (trace.safe_to_prune === false) {
+          streamTerminalStep("GuardianAgent", `Cleanup remains blocked: ${verdict}.`, "warning");
+        }
       } catch (error) {
-        showActionNotice("Lineage failed", error.message, "error");
-        streamTerminalStep("SherlockAgent", `Lineage lookup failed: ${error.message}`, "danger");
+        streamTerminalStep("SherlockAgent", `Lineage request failed for ${bucket.id}: ${error.message}`, "danger");
       }
-    }
-
-    function showActionNotice(title, message, tone = "info") {
-      let notice = document.getElementById("aura-action-notice");
-      if (!notice) {
-        notice = document.createElement("div");
-        notice.id = "aura-action-notice";
-        notice.setAttribute("role", "status");
-        notice.style.cssText = "position:fixed;right:20px;bottom:20px;z-index:99999;max-width:min(440px,calc(100vw - 40px));padding:14px 16px;border:1px solid rgba(255,255,255,.22);border-radius:12px;background:#101820;color:#fff;box-shadow:0 12px 40px rgba(0,0,0,.45);white-space:pre-wrap;font:13px/1.5 Inter, sans-serif";
-        document.body.appendChild(notice);
-      }
-      const color = tone === "success" ? "#00ff88" : tone === "error" ? "#ff5577" : tone === "warning" ? "#ffbf47" : "#00d9ff";
-      notice.style.borderColor = color;
-      notice.innerHTML = "";
-      const heading = document.createElement("strong"); heading.textContent = title; heading.style.color = color;
-      const body = document.createElement("div"); body.textContent = message;
-      notice.append(heading, body);
-      notice.style.display = "block";
-      clearTimeout(notice._hideTimer);
-      notice._hideTimer = setTimeout(() => { notice.style.display = "none"; }, 6500);
-    }
-
-    // Keep the dashboard KPI cards synchronized with the current backend metrics.
-    function updateGlobalMetricsBar() {
-      const metrics = AppState.metrics || {};
-      const setText = (id, value) => {
-        const element = document.getElementById(id);
-        if (element) element.textContent = value;
-      };
-      const number = value => Number(value || 0).toLocaleString("en-US", { maximumFractionDigits: 1 });
-      setText("kpi-nodes", number(metrics.totalNodes));
-      setText("kpi-edges", number(metrics.totalEdges));
-      setText("kpi-idle-traps", number(metrics.idleBuckets));
-      setText("kpi-prod-locks", number(metrics.protectedLocks));
-      setText("kpi-reclaimed-gb", number(metrics.reclaimedGb));
-      setText("kpi-monthly-saved", number(metrics.monthlySavedUsd));
-      setText("kpi-annual-saved", `$${number(Number(metrics.monthlySavedUsd || 0) * 12)} estimated annual savings`);
-      setText("kpi-carbon-offset", number(metrics.carbonOffsetKg));
     }
 
     // =========================================================================
@@ -1985,8 +1929,7 @@ RETURN b.id, collect(distinct s.id) AS connected_services, length(path) AS hops;
 
     async function triggerScanIdleData() {
       centerRadarCamera();
-      streamTerminalStep("ReconAgent", "SCAN INITIATED — requesting idle data buckets from the backend...", "primary");
-      streamTerminalStep("SherlockAgent", `Tenant: ${AppState.activeTenant}. Sending bucket discovery request...`, "secondary");
+      streamTerminalStep("ReconAgent", "Loading current tenant buckets from the backend...", "primary");
       try {
         const response = await fetch(`${API_BASE}/api/buckets/dark?tenant=${encodeURIComponent(AppState.activeTenant)}`, {
           headers: { "X-Tenant-Graph": AppState.activeTenant }
@@ -1994,14 +1937,10 @@ RETURN b.id, collect(distinct s.id) AS connected_services, length(path) AS hops;
         const result = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(result.detail || `Bucket scan failed (${response.status})`);
         AppState.buckets = Array.isArray(result.buckets) ? result.buckets : AppState.buckets;
-        const scanTargets = AppState.buckets.filter(item => !item.pruned);
-        const total = scanTargets.length;
-        streamTerminalStep("ReconAgent", `BUCKET DISCOVERY COMPLETE — ${total} unpruned bucket(s) returned by backend.`, "primary");
 
         let recorded = 0;
-        let safeCount = 0;
-        for (const [index, bucket] of scanTargets.entries()) {
-          streamTerminalStep("SherlockAgent", `AI AGENT ANALYZING BUCKET ${index + 1}/${total}: ${bucket.id}`, "secondary");
+        for (const bucket of AppState.buckets.filter(item => !item.pruned)) {
+          streamTerminalStep("SherlockAgent", `Checking graph dependencies for ${bucket.id}...`, "secondary");
           const analysisResponse = await fetch(`${API_BASE}/api/agent/analyze-prune?tenant=${encodeURIComponent(AppState.activeTenant)}`, {
             method: "POST",
             headers: { "Content-Type": "application/json", "X-Tenant-Graph": AppState.activeTenant },
@@ -2014,12 +1953,10 @@ RETURN b.id, collect(distinct s.id) AS connected_services, length(path) AS hops;
           bucket.verdict_label = analysis.verdict_label;
           bucket.connected_pipes = analysis.connected_pipelines || [];
           bucket.connected_services = (analysis.impacted_production_services || []).map(name => `${name} (PROD)`);
-          if (analysis.safe_to_prune === true) safeCount += 1;
           recorded += 1;
-          streamTerminalStep("GuardianAgent", `ANALYSIS COMPLETED ${recorded}/${total}: ${bucket.id} — ${analysis.verdict_label || "Verdict recorded"}.`, analysis.safe_to_prune === true ? "primary" : "warning");
         }
         await switchActiveTenantMirror(AppState.activeTenant, true);
-        streamTerminalStep("GuardianAgent", `SCAN COMPLETED — analyzed ${recorded}/${total} bucket(s); ${safeCount} marked safe, ${recorded - safeCount} require protection/review.`, "primary");
+        streamTerminalStep("GuardianAgent", `Scan complete. ${recorded} bucket decisions were analyzed and recorded through the backend.`, "primary");
       } catch (error) {
         streamTerminalStep("GuardianAgent", `Scan incomplete: ${error.message}. No success was assumed.`, "danger");
       }
@@ -2144,7 +2081,6 @@ RETURN b.id, collect(distinct s.id) AS connected_services, length(path) AS hops;
     // POWERHOUSE FEATURE 3: EPISODIC MEMORY VAULT MODAL
     // =========================================================================
     async function openEpisodicMemoryVault() {
-      streamTerminalStep("UIAgent", "Opening Episodic Memory Vault and requesting backend memories...", "secondary");
       const modal = document.getElementById("episodic-memory-vault-modal");
       modal.classList.remove("hidden");
       modal.classList.add("flex");
@@ -2186,14 +2122,12 @@ RETURN b.id, collect(distinct s.id) AS connected_services, length(path) AS hops;
       const modal = document.getElementById("episodic-memory-vault-modal");
       modal.classList.add("hidden");
       modal.classList.remove("flex");
-      streamTerminalStep("UIAgent", "Episodic Memory Vault closed.", "secondary");
     }
 
     // =========================================================================
     // EXECUTIVE AUDIT REPORT MODAL & DOWNLOAD SYSTEM (.HTML + .JSON + PDF)
     // =========================================================================
     function openExecutiveAuditReportModal() {
-      streamTerminalStep("GuardianAgent", "Generating Executive Audit Report from currently loaded dashboard data...", "secondary");
       const modal = document.getElementById("executive-audit-report-modal");
       modal.classList.remove("hidden");
       modal.classList.add("flex");
@@ -2285,19 +2219,12 @@ RETURN b.id, collect(distinct s.id) AS connected_services, length(path) AS hops;
       `;
 
       lucide.createIcons();
-      streamTerminalStep("GuardianAgent", `Memory Vault displayed ${AppState.memories.length} record(s) from the current session state.`, "primary");
-    }
-
-    function printExecutiveAuditReport() {
-      streamTerminalStep("GuardianAgent", "Print requested for the currently generated Executive Audit Report.", "primary");
-      window.print();
     }
 
     function closeExecutiveAuditReportModal() {
       const modal = document.getElementById("executive-audit-report-modal");
       modal.classList.add("hidden");
       modal.classList.remove("flex");
-      streamTerminalStep("UIAgent", "Executive Audit Report closed.", "secondary");
     }
 
     function downloadExecutiveReportHTML() {
@@ -2386,7 +2313,7 @@ RETURN b.id, collect(distinct s.id) AS connected_services, length(path) AS hops;
 
     function clearAgentTerminal() {
       document.getElementById("agent-thought-terminal").innerHTML = "";
-      streamTerminalStep("UIAgent", "Terminal cleared by user. New activity will appear here.", "secondary");
+      streamTerminalStep("ReconAgent", "Terminal stream cleared. Awaiting commands from Lead Architect @prateek...", "primary");
     }
 
     function toggleTerminalDrawer() {
@@ -2394,25 +2321,7 @@ RETURN b.id, collect(distinct s.id) AS connected_services, length(path) AS hops;
       const icon = document.getElementById("terminal-chevron-icon");
       term.classList.toggle("hidden");
       icon.classList.toggle("rotate-180");
-      streamTerminalStep("UIAgent", term.classList.contains("hidden") ? "Agent Activity panel collapsed." : "Agent Activity panel expanded.", "secondary");
     }
-
-    // Global visible click feedback: every dashboard button acknowledges clicks.
-    document.addEventListener("click", (event) => {
-      const button = event.target.closest("button[onclick]");
-      if (!button || button.disabled) return;
-      button.classList.add("ring-2", "ring-cyan-400", "scale-[0.98]");
-      button.setAttribute("aria-busy", "true");
-      const actionLabel = (button.innerText || button.getAttribute("aria-label") || button.title || "Dashboard button").replace(/\s+/g, " ").trim().slice(0, 90);
-      streamTerminalStep("UIAgent", `CLICK RECEIVED: "${actionLabel}". Running its assigned handler; check the following result entry.`, "secondary");
-      const oldTitle = button.getAttribute("title");
-      button.setAttribute("title", "Action triggered — see Agent Activity Terminal for the result");
-      setTimeout(() => {
-        button.classList.remove("ring-2", "ring-cyan-400", "scale-[0.98]");
-        button.removeAttribute("aria-busy");
-        if (oldTitle === null) button.removeAttribute("title"); else button.setAttribute("title", oldTitle);
-      }, 900);
-    }, true);
 
     // =========================================================================
     // BOOTSTRAP WAR ROOM ON DOM LOAD

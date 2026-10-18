@@ -914,36 +914,73 @@ class SherlockReasonerAgent:
             f"collect(distinct p.id) AS pipelines, coalesce(max(length(path)), 0) AS hop_depth;"
         )
         graph_result, exec_ms = cloud_pool.run_cypher(tenant, cypher_query)
-        rows = getattr(graph_result, "result_set", []) or [] if graph_result is not None else []
-        graph_reasoning_used = (
-    graph_result is not None
-    and bool(rows)
-    and len(rows[0]) >= 4
-    and bool(rows[0][0])
-)
+        rows = (getattr(graph_result, "result_set", None) or []) if graph_result is not None else []
+        row = rows[0] if rows else []
+        graph_row_valid = len(row) >= 4 and row[0] == bucket["id"]
 
-        if graph_reasoning_used:
-            row = rows[0] if rows else []
-            prod_services = list(row[1] or []) if len(row) > 1 else []
-            connected_pipes = list(row[2] or []) if len(row) > 2 else []
-            max_hops = int(row[3] or 0) if len(row) > 3 and row[3] is not None else 0
+        # Build a deterministic local view as a reconciliation source. FalkorDB can
+        # return a syntactically valid row with empty collections when its stored
+        # relationships are stale or incomplete; do not silently report "no impact"
+        # when the application's known topology contains production dependencies.
+        local_pipes = list(dict.fromkeys(bucket.get("readers", []) + bucket.get("writers", [])))
+        service_by_id = {svc["id"]: svc for svc in state.get("services", [])}
+        direct_services = [
+            svc for svc in service_by_id.values()
+            if any(pipe in svc.get("pipes", []) for pipe in local_pipes)
+        ]
+        impacted = {svc["id"]: svc for svc in direct_services}
+        frontier = set(impacted)
+        for _ in range(2):
+            next_frontier = {
+                svc["id"]: svc for svc in service_by_id.values()
+                if svc["id"] not in impacted
+                and any(dep in frontier for dep in svc.get("deps", []))
+            }
+            impacted.update(next_frontier)
+            frontier = set(next_frontier)
+            if not frontier:
+                break
+
+        local_prod = sorted(
+            sid for sid, svc in impacted.items()
+            if str(svc.get("env", "")).upper() == "PRODUCTION"
+        )
+        local_staging = sorted(
+            sid for sid, svc in impacted.items()
+            if str(svc.get("env", "")).upper() != "PRODUCTION"
+        )
+
+        graph_prod = list(row[1] or []) if graph_row_valid else []
+        graph_pipes = list(row[2] or []) if graph_row_valid else []
+        graph_hops = int(row[3] or 0) if graph_row_valid and row[3] is not None else 0
+        graph_has_impact = bool(graph_prod or graph_pipes)
+        local_has_prod = bool(local_prod)
+
+        if graph_row_valid and graph_has_impact:
+            prod_services = sorted(set(graph_prod) | set(local_prod))
+            connected_pipes = list(dict.fromkeys(graph_pipes + local_pipes))
+            staging_services = local_staging
+            max_hops = max(graph_hops, 3 if local_prod else 2 if local_staging else 0)
+            reasoning_source = "falkordb_cypher_reconciled" if local_has_prod and not graph_prod else "falkordb_cypher"
+        elif local_has_prod or local_staging or local_pipes:
+            # Reconcile an empty/incomplete graph response against the known topology.
+            prod_services = local_prod
+            connected_pipes = local_pipes
+            staging_services = local_staging
+            max_hops = 3 if len(impacted) > len(direct_services) else 2 if direct_services else 1 if local_pipes else 0
+            reasoning_source = "in_memory_reconciliation" if graph_row_valid else "in_memory_demo_fallback"
+        elif graph_row_valid:
+            prod_services = graph_prod
+            connected_pipes = graph_pipes
             staging_services = []
+            max_hops = graph_hops
+            reasoning_source = "falkordb_cypher"
         else:
-            # Deterministic fallback for local/demo mode when FalkorDB is unavailable.
-            connected_pipes = list(dict.fromkeys(bucket.get("readers", []) + bucket.get("writers", [])))
-            hop2_services = [
-                svc for svc in state["services"]
-                if any(pipe in svc["pipes"] for pipe in connected_pipes)
-            ]
-            hop2_ids = {svc["id"] for svc in hop2_services}
-            hop3_services = [
-                svc for svc in state["services"]
-                if svc["id"] not in hop2_ids and any(dep in hop2_ids for dep in svc["deps"])
-            ]
-            all_services = hop2_services + hop3_services
-            prod_services = [svc["id"] for svc in all_services if svc["env"] == "PRODUCTION"]
-            staging_services = [svc["id"] for svc in all_services if svc["env"] != "PRODUCTION"]
-            max_hops = 3 if hop3_services else 2 if hop2_services else 1 if connected_pipes else 0
+            prod_services = []
+            connected_pipes = local_pipes
+            staging_services = local_staging
+            max_hops = 1 if local_pipes else 0
+            reasoning_source = "in_memory_demo_fallback"
 
         sens = bucket.get("sensitivity", "INTERNAL").upper()
         is_pii = "PII" in sens or "HIPAA" in sens or "PCI" in sens
@@ -998,9 +1035,9 @@ class SherlockReasonerAgent:
             "highlighted_node_ids": highlighted_node_ids,
             "raw_cypher_query": cypher_query,
             "cypher_latency_ms": exec_ms,
-            "reasoning_source": "falkordb_cypher" if graph_reasoning_used else "in_memory_demo_fallback",
+            "reasoning_source": reasoning_source,
             "thought_log": (
-                f"[SherlockAgent]: {'FalkorDB Cypher' if graph_reasoning_used else 'In-memory fallback'} "
+                f"[SherlockAgent]: {reasoning_source} "
                 f"evaluated the 1..3 hop dependency path ({max_hops} hops). "
                 f"Verdict={verdict_label} ({case_type}). Prod Services={', '.join(prod_services) or 'None'}."
             ),
@@ -1559,10 +1596,11 @@ async def post_agent_execute_prune(
     }
     state["memories"].insert(0, prune_mem)
 
-    cloud_pool.run_cypher(
+    graph_write, _ = cloud_pool.run_cypher(
         tenant,
         f"MATCH (b:Bucket {{id: '{sanitize_cypher(bucket['id'])}'}}) SET b.pruned = true",
     )
+    prune_mem["persistence_mode"] = "falkordb_cloud" if graph_write is not None else "in_memory_demo"
 
     return {
         "status": "PRUNED",
@@ -1682,12 +1720,19 @@ async def post_chaos_reset(
 
     if body.restore_all_pruned:
         cloud_pool.store[tenant] = generate_tenant_baseline(tenant)
+        # Restore the graph metadata as well as the in-process demo state.
+        cloud_pool.run_cypher(
+            tenant,
+            "MATCH (b:Bucket) SET b.pruned = false"
+        )
     else:
         state = cloud_pool.store[tenant]
         state["buckets"] = [b for b in state["buckets"] if not b.get("is_chaos", False)]
         state["memories"] = [m for m in state["memories"] if not m.get("is_chaos", False)]
 
-    cloud_pool.run_cypher(tenant, "MATCH (b:Bucket {is_chaos: true}) DETACH DELETE b")
+    # Chaos memories and buckets are both marked is_chaos; remove both so they
+    # cannot reappear during the next graph hydration.
+    cloud_pool.run_cypher(tenant, "MATCH (n) WHERE n.is_chaos = true DETACH DELETE n")
 
     return {
         "status": "CHAOS_RESET_COMPLETE",
