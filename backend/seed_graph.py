@@ -14,6 +14,7 @@ Description : Populates and verifies 3 isolated multi-tenant graphs in FalkorDB
 """
 
 import logging
+import os
 import sys
 import time
 from datetime import datetime, timezone
@@ -39,12 +40,13 @@ logging.basicConfig(
 logger = logging.getLogger("darkdata.seeder")
 
 # ==============================================================================
-# HARDCODED FALKORDB CLOUD CREDENTIALS & MULTI-TENANT MANIFEST
-# ==============================================================================
-FALKORDB_HOST: str = "r-6jissuruar.instance-feag3ay0c.hc-7up0crkyn.ap-south-1.aws.f2e0a955bb84.cloud"
-FALKORDB_PORT: int = 52698
-FALKORDB_USER: str = "falkordb"
-FALKORDB_PASSWORD: str = "11223344"
+# FalkorDB credentials are provided via environment variables.
+FALKORDB_HOST: str = os.getenv("FALKORDB_HOST", "").strip()
+FALKORDB_PORT: int = int(os.getenv("FALKORDB_PORT", "6379"))
+FALKORDB_USER: str = os.getenv("FALKORDB_USER", "").strip()
+FALKORDB_PASSWORD: str = os.getenv("FALKORDB_PASSWORD", "")
+FALKORDB_SSL: bool = os.getenv("FALKORDB_SSL", "true").strip().lower() in {"1", "true", "yes", "on"}
+RESET_EXISTING_GRAPH: bool = "--reset" in sys.argv
 
 ARCHITECT_NAME: str = "Prateek Gupta"
 ARCHITECT_HANDLE: str = "@prateek"
@@ -93,20 +95,20 @@ def escape_cypher(val: Any) -> str:
 # ==============================================================================
 def connect_falkordb_cloud() -> FalkorDB:
     """
-    Initializes and returns the FalkorDB Cloud client using the hardcoded
-    production credentials.
+    Initializes the Falkordb client from environment-provided credentials.
     """
     logger.info(
         f"Connecting to FalkorDB Cloud instance at {FALKORDB_HOST}:{FALKORDB_PORT} (user='{FALKORDB_USER}')..."
     )
-    client = FalkorDB(
-        host="r-6jissuruar.instance-feag3ay0c.hc-7up0crkyn.ap-south-1.aws.f2e0a955bb84.cloud",
-        port=52698,
-        username="falkordb",
-        password="11223344",
-        ssl=False,
+    if not FALKORDB_HOST or not FALKORDB_USER or not FALKORDB_PASSWORD:
+        raise RuntimeError("Set FALKORDB_HOST, FALKORDB_USER and FALKORDB_PASSWORD before seeding.")
+    return FalkorDB(
+        host=FALKORDB_HOST,
+        port=FALKORDB_PORT,
+        username=FALKORDB_USER,
+        password=FALKORDB_PASSWORD,
+        ssl=FALKORDB_SSL,
     )
-    return client
 
 
 # ==============================================================================
@@ -114,7 +116,7 @@ def connect_falkordb_cloud() -> FalkorDB:
 # ==============================================================================
 def seed_tenant_graph(client: FalkorDB, tenant: str) -> None:
     """
-    Clears existing state and populates a single tenant graph with:
+    Safely populates a single tenant graph with (destructive reset requires --reset):
       - Command Teams (:Team) led by @prateek
       - Production & Staging Services (:Service) including Auth-Service, Billing-Engine, Patient-Portal
       - ETL & Streaming Pipelines (:Pipeline) including ETL-Stream-A, Analytics-Pipeline
@@ -133,12 +135,17 @@ def seed_tenant_graph(client: FalkorDB, tenant: str) -> None:
 
     graph = client.select_graph(tenant)
 
-    # Step 1: Wipe existing tenant graph state cleanly
-    try:
+    # Step 1: Protect existing data. Destructive reset requires an explicit --reset.
+    existing = graph.query("MATCH (n) RETURN count(n) AS cnt")
+    existing_count = int(existing.result_set[0][0]) if existing and existing.result_set else 0
+    if existing_count and not RESET_EXISTING_GRAPH:
+        raise RuntimeError(
+            f"Refusing to overwrite {tenant}: it already contains {existing_count} nodes. "
+            "Re-run with --reset only if you intentionally want to delete that tenant graph."
+        )
+    if existing_count and RESET_EXISTING_GRAPH:
         graph.query("MATCH (n) DETACH DELETE n")
-        logger.info(f"[{tenant}] Cleared existing graph topology.")
-    except Exception as exc:
-        logger.warning(f"[{tenant}] Notice while clearing graph: {exc}")
+        logger.warning("[%s] Explicit --reset used; existing tenant graph was cleared.", tenant)
 
     # Step 2: Create Command Teams (:Team) — Solo Architect @prateek
     teams_data = [
@@ -616,7 +623,21 @@ def seed_tenant_graph(client: FalkorDB, tenant: str) -> None:
 
 
 def seed_database(client: FalkorDB) -> None:
-    """Iterates through all 3 multi-tenant graphs and seeds each one."""
+    """Preflight all tenant graphs, then seed without accidental data loss."""
+    if not RESET_EXISTING_GRAPH:
+        populated = []
+        for tenant_name in TENANT_GRAPHS:
+            graph = client.select_graph(tenant_name)
+            result = graph.query("MATCH (n) RETURN count(n) AS cnt")
+            count = int(result.result_set[0][0]) if result and result.result_set else 0
+            if count:
+                populated.append(f"{tenant_name} ({count} nodes)")
+        if populated:
+            raise RuntimeError(
+                "Refusing to seed because these tenant graphs already contain data: "
+                + ", ".join(populated)
+                + ". Use --reset only if you intentionally want to delete and rebuild all three."
+            )
     for tenant_name in TENANT_GRAPHS:
         seed_tenant_graph(client, tenant_name)
 
@@ -740,7 +761,8 @@ if __name__ == "__main__":
     print("\n================================================================================")
     print(" AURA-GRAPH // DARKDATA-GRAPHOPS — FALKORDB CLOUD MULTIGRAPH SEEDER & VERIFIER")
     print(f" Lead Architect & Solo Owner : {ARCHITECT_NAME} ({ARCHITECT_HANDLE})")
-    print(f" Target Cloud Instance       : {FALKORDB_HOST}:{FALKORDB_PORT}")
+    print(f" Target Cloud Instance       : {FALKORDB_HOST or '[not configured]'}:{FALKORDB_PORT}")
+    print(f" Destructive reset enabled   : {RESET_EXISTING_GRAPH}")
     print("================================================================================\n")
 
     try:

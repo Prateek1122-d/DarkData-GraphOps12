@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 ================================================================================
-AURA-GRAPH // DarkData-GraphOps Engine (v2.5.0)
+AURA-GRAPH // DarkData-GraphOps Engine (v2.6.0)
 Multi-Tenant Cloud Security, GraphRAG & Autonomous Remediation Platform
 ================================================================================
 Lead Systems Architect & Solo Owner : Prateek Gupta (@prateek)
@@ -18,6 +18,7 @@ import hashlib
 import logging
 import math
 import os
+import secrets
 import sys
 import time
 import uuid
@@ -30,6 +31,12 @@ from fastapi import Depends, FastAPI, Header, HTTPException, Path as FastAPIPath
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from pydantic import BaseModel, Field
+
+try:
+    from dotenv import load_dotenv
+    load_dotenv(Path(__file__).resolve().parent.parent / ".env")
+except ImportError:
+    pass
 
 try:
     from falkordb import FalkorDB
@@ -85,11 +92,13 @@ def sanitize_cypher(value: Any) -> str:
 # ==============================================================================
 # MODULE 2: FALKORDB MULTI-TENANT CLOUD CONNECTOR & SESSION ROUTING
 # ==============================================================================
-FALKORDB_HOST: str = "r-6jissuruar.instance-feag3ay0c.hc-7up0crkyn.ap-south-1.aws.f2e0a955bb84.cloud"
-FALKORDB_PORT: int = 52698
-FALKORDB_USER: str = "falkordb"
-FALKORDB_PASSWORD: str = "11223344"
-FALKORDB_SSL: bool = False
+# All database credentials are supplied through environment variables. Never commit secrets.
+FALKORDB_HOST: str = os.getenv("FALKORDB_HOST", "").strip()
+FALKORDB_PORT: int = int(os.getenv("FALKORDB_PORT", "6379"))
+FALKORDB_USER: str = os.getenv("FALKORDB_USER", "").strip()
+FALKORDB_PASSWORD: str = os.getenv("FALKORDB_PASSWORD", "")
+FALKORDB_SSL: bool = os.getenv("FALKORDB_SSL", "true").strip().lower() in {"1", "true", "yes", "on"}
+AURA_ADMIN_API_KEY: str = os.getenv("AURA_ADMIN_API_KEY", "").strip()
 
 DEFAULT_TENANT: str = "darkdata_graphops"
 SUPPORTED_TENANTS: List[str] = [
@@ -690,13 +699,8 @@ def generate_tenant_baseline(tenant: str) -> Dict[str, Any]:
 
 class FalkorCloudConnectorPool:
     """
-    Manages the primary FalkorDB Cloud connection using the exact hardcoded credentials:
-      - Host     : r-6jissuruar.instance-feag3ay0c.hc-7up0crkyn.ap-south-1.aws.f2e0a955bb84.cloud
-      - Port     : 52698
-      - User     : falkordb
-      - Password : 11223344
-    Provides multi-tenant graph selection, automatic cloud seeding, and resilient
-    in-memory state synchronization.
+    Manages the FalkorDB connection using environment-provided credentials.
+    Provides multi-tenant graph selection and an explicit in-memory demo fallback.
     """
 
     def __init__(self) -> None:
@@ -711,7 +715,11 @@ class FalkorCloudConnectorPool:
     def initialize_cloud_client(self) -> Optional[Any]:
         if FalkorDB is None:
             self.cloud_connected = False
-            db_logger.warning("falkordb Python package not installed; using in-memory graph mirror.")
+            db_logger.warning("falkordb package is unavailable; using the in-memory demo graph.")
+            return None
+        if not FALKORDB_HOST or not FALKORDB_USER or not FALKORDB_PASSWORD:
+            self.cloud_connected = False
+            db_logger.warning("FalkorDB credentials are not configured; using the in-memory demo graph.")
             return None
 
         try:
@@ -719,13 +727,12 @@ class FalkorCloudConnectorPool:
                 db_logger.info(
                     f"Connecting to FalkorDB Cloud -> {FALKORDB_HOST}:{FALKORDB_PORT} (user='{FALKORDB_USER}')"
                 )
-                # Hardcoded FalkorDB Cloud credentials directly in client initialization
                 self.client = FalkorDB(
-                    host="r-6jissuruar.instance-feag3ay0c.hc-7up0crkyn.ap-south-1.aws.f2e0a955bb84.cloud",
-                    port=52698,
-                    username="falkordb",
-                    password="11223344",
-                    ssl=False,
+                    host=FALKORDB_HOST,
+                    port=FALKORDB_PORT,
+                    username=FALKORDB_USER,
+                    password=FALKORDB_PASSWORD,
+                    ssl=FALKORDB_SSL,
                 )
             return self.client
         except Exception as exc:
@@ -826,9 +833,10 @@ class FalkorCloudConnectorPool:
             for mem in state["memories"]:
                 graph.query(
                     f"MATCH (bk:Bucket {{id: '{sanitize_cypher(mem['bucket'])}'}}) "
-                    f"MERGE (m:Memory {{id: '{sanitize_cypher(mem['id'])}', verdict: '{sanitize_cypher(mem['verdict'])}', "
-                    f"summary: '{sanitize_cypher(mem['summary'])}', rule: '{sanitize_cypher(mem['rule'])}', "
-                    f"owner: '{ARCHITECT_HANDLE}'}}) "
+                    f"MERGE (m:Memory {{id: '{sanitize_cypher(mem['id'])}', bucket: '{sanitize_cypher(mem['bucket'])}', "
+                    f"session: '{sanitize_cypher(mem.get('session', 'Demo Session'))}', "
+                    f"verdict: '{sanitize_cypher(mem['verdict'])}', summary: '{sanitize_cypher(mem['summary'])}', "
+                    f"rule: '{sanitize_cypher(mem['rule'])}', owner: '{ARCHITECT_HANDLE}'}}) "
                     f"MERGE (m)-[:ABOUT_BUCKET]->(bk)"
                 )
             db_logger.info(f"Seeded FalkorDB Cloud tenant graph '{tenant}' successfully.")
@@ -898,39 +906,39 @@ class SherlockReasonerAgent:
         bucket: Dict[str, Any],
     ) -> Dict[str, Any]:
         cypher_query = (
-            f"MATCH path = (s:Service)-[:DEPENDS_ON*1..3]->(p:Pipeline)-[:READS_FROM]->"
-            f"(b:Bucket {{id: '{sanitize_cypher(bucket['id'])}'}})\n"
+            f"MATCH (b:Bucket {{id: '{sanitize_cypher(bucket['id'])}'}})\n"
             f"WHERE b.owner = '{ARCHITECT_HANDLE}'\n"
-            f"OPTIONAL MATCH (t:Team)-[:OWNS]->(b)\n"
+            f"OPTIONAL MATCH path = (s:Service {{env: 'PRODUCTION'}})-[:DEPENDS_ON*1..3]->"
+            f"(p:Pipeline)-[:READS_FROM]->(b)\n"
             f"RETURN b.id AS bucket_id, collect(distinct s.id) AS prod_services, "
-            f"collect(distinct p.id) AS pipelines, length(path) AS hop_depth;"
+            f"collect(distinct p.id) AS pipelines, coalesce(max(length(path)), 0) AS hop_depth;"
         )
-        _, exec_ms = cloud_pool.run_cypher(tenant, cypher_query)
+        graph_result, exec_ms = cloud_pool.run_cypher(tenant, cypher_query)
+        rows = getattr(graph_result, "result_set", []) or [] if graph_result is not None else []
+        graph_reasoning_used = graph_result is not None and bool(rows)
 
-        connected_pipes = list(dict.fromkeys(bucket.get("readers", []) + bucket.get("writers", [])))
-
-        hop2_services = [
-            s for s in state["services"]
-            if any(p in s["pipes"] for p in connected_pipes)
-        ]
-        hop2_ids = {s["id"] for s in hop2_services}
-
-        hop3_services = [
-            s for s in state["services"]
-            if s["id"] not in hop2_ids and any(d in hop2_ids for d in s["deps"])
-        ]
-
-        all_services = hop2_services + hop3_services
-        prod_services = [s["id"] for s in all_services if s["env"] == "PRODUCTION"]
-        staging_services = [s["id"] for s in all_services if s["env"] != "PRODUCTION"]
-
-        max_hops = 0
-        if connected_pipes:
-            max_hops = 1
-        if hop2_services:
-            max_hops = 2
-        if hop3_services:
-            max_hops = 3
+        if graph_reasoning_used:
+            row = rows[0] if rows else []
+            prod_services = list(row[1] or []) if len(row) > 1 else []
+            connected_pipes = list(row[2] or []) if len(row) > 2 else []
+            max_hops = int(row[3] or 0) if len(row) > 3 and row[3] is not None else 0
+            staging_services = []
+        else:
+            # Deterministic fallback for local/demo mode when FalkorDB is unavailable.
+            connected_pipes = list(dict.fromkeys(bucket.get("readers", []) + bucket.get("writers", [])))
+            hop2_services = [
+                svc for svc in state["services"]
+                if any(pipe in svc["pipes"] for pipe in connected_pipes)
+            ]
+            hop2_ids = {svc["id"] for svc in hop2_services}
+            hop3_services = [
+                svc for svc in state["services"]
+                if svc["id"] not in hop2_ids and any(dep in hop2_ids for dep in svc["deps"])
+            ]
+            all_services = hop2_services + hop3_services
+            prod_services = [svc["id"] for svc in all_services if svc["env"] == "PRODUCTION"]
+            staging_services = [svc["id"] for svc in all_services if svc["env"] != "PRODUCTION"]
+            max_hops = 3 if hop3_services else 2 if hop2_services else 1 if connected_pipes else 0
 
         sens = bucket.get("sensitivity", "INTERNAL").upper()
         is_pii = "PII" in sens or "HIPAA" in sens or "PCI" in sens
@@ -985,8 +993,10 @@ class SherlockReasonerAgent:
             "highlighted_node_ids": highlighted_node_ids,
             "raw_cypher_query": cypher_query,
             "cypher_latency_ms": exec_ms,
+            "reasoning_source": "falkordb_cypher" if graph_reasoning_used else "in_memory_demo_fallback",
             "thought_log": (
-                f"[SherlockAgent]: Executed 1..3 hop Cypher traversal ({max_hops} hops). "
+                f"[SherlockAgent]: {'FalkorDB Cypher' if graph_reasoning_used else 'In-memory fallback'} "
+                f"evaluated the 1..3 hop dependency path ({max_hops} hops). "
                 f"Verdict={verdict_label} ({case_type}). Prod Services={', '.join(prod_services) or 'None'}."
             ),
         }
@@ -1057,12 +1067,14 @@ class GuardianGovernorAgent:
 
         cypher_commit = (
             f"MATCH (b:Bucket {{id: '{sanitize_cypher(bucket['id'])}'}}) "
-            f"CREATE (m:Memory {{id: '{mem_id}', memory_type: '{memory_type}', "
+            f"CREATE (m:Memory {{id: '{mem_id}', bucket: '{sanitize_cypher(bucket['id'])}', "
+            f"session: '{sanitize_cypher(session_tag)}', memory_type: '{memory_type}', "
             f"verdict: '{sanitize_cypher(verdict_label)}', summary: '{sanitize_cypher(summary_text)}', "
             f"rule: '{sanitize_cypher(rule_text)}', owner: '{ARCHITECT_HANDLE}', created_at: '{now_iso}'}}) "
             f"CREATE (m)-[:ABOUT_BUCKET]->(b)"
         )
-        cloud_pool.run_cypher(tenant, cypher_commit)
+        graph_write, _ = cloud_pool.run_cypher(tenant, cypher_commit)
+        new_mem["persistence_mode"] = "falkordb_cloud" if graph_write is not None else "in_memory_demo"
 
         return new_mem
 
@@ -1184,7 +1196,7 @@ class GraphRAGSearchRequestModel(BaseModel):
 
 class GraphRAGIngestTraceRequestModel(BaseModel):
     bucket_id: str = Field(..., description="Associated bucket ID")
-    raw_text: str = Field(..., min_length=5, description="Unstructured agent log or error trace text")
+    raw_text: str = Field(..., min_length=5, max_length=5000, description="Unstructured agent log or error trace text")
     agent: Optional[str] = Field(default="ReconAgent", description="Originating agent")
     severity: Optional[str] = Field(default="INFO", description="Trace severity")
     tenant: Optional[str] = Field(default=None, description="Optional tenant override")
@@ -1196,7 +1208,7 @@ class GraphRAGIngestTraceRequestModel(BaseModel):
 @asynccontextmanager
 async def app_lifespan(app_instance: FastAPI):
     api_logger.info("====================================================================")
-    api_logger.info(" AURA-GRAPH // DarkData-GraphOps Engine v2.5.0 Starting...")
+    api_logger.info(" AURA-GRAPH // DarkData-GraphOps Engine v2.6.0 Starting...")
     api_logger.info(f" Lead Architect : {ARCHITECT_NAME} ({ARCHITECT_HANDLE})")
     api_logger.info(f" FalkorDB Cloud : {FALKORDB_HOST}:{FALKORDB_PORT}")
     api_logger.info("====================================================================")
@@ -1207,10 +1219,10 @@ async def app_lifespan(app_instance: FastAPI):
 
 app = FastAPI(
     title="AURA-GRAPH // DarkData-GraphOps Engine",
-    version="2.5.0",
+    version="2.6.0",
     description=(
-        "Enterprise Multi-Tenant Cloud Security, GraphRAG Semantic Vector Search, "
-        "and 3-Agent Autonomous Remediation Platform powered by FalkorDB Cloud. "
+        "Multi-Tenant Cloud Governance Demo with GraphRAG-style retrieval and "
+        "3-Agent Graph-Assisted Remediation Prototype powered by FalkorDB. "
         "Solo Architect: Prateek Gupta (@prateek)."
     ),
     lifespan=app_lifespan,
@@ -1218,10 +1230,12 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=[origin.strip() for origin in os.getenv(
+        "CORS_ORIGINS", "http://localhost:8000,http://127.0.0.1:8000"
+    ).split(",") if origin.strip()],
+    allow_credentials=False,
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["Content-Type", "X-Tenant", "X-Tenant-Graph", "X-Admin-Key"],
 )
 
 
@@ -1249,16 +1263,17 @@ async def serve_war_room_dashboard(
 async def get_health_status(active_tenant: str = Depends(resolve_active_tenant)):
     graph, latency_ms = cloud_pool.get_tenant_graph(active_tenant)
     return {
-        "status": "ONLINE",
+        "status": "ONLINE" if graph is not None else "DEGRADED",
+        "service": "ONLINE",
+        "graph_mode": "falkordb_cloud" if graph is not None else "in_memory_demo",
         "title": "AURA-GRAPH // DarkData-GraphOps Engine",
-        "version": "2.5.0",
+        "version": "2.6.0",
         "owner": ARCHITECT_HANDLE,
         "lead_architect": ARCHITECT_NAME,
         "falkordb_cloud": {
             "connected": graph is not None,
             "host": FALKORDB_HOST,
             "port": FALKORDB_PORT,
-            "user": FALKORDB_USER,
             "latency_ms": latency_ms,
         },
         "active_tenant": active_tenant,
@@ -1273,7 +1288,7 @@ async def get_health_status(active_tenant: str = Depends(resolve_active_tenant))
 # ------------------------------------------------------------------------------
 @app.get("/api/graph/stats")
 async def get_graph_stats(active_tenant: str = Depends(resolve_active_tenant)):
-    _, latency_ms = cloud_pool.get_tenant_graph(active_tenant)
+    latency_ms = hydrate_tenant_state_from_graph(active_tenant)
     stats = aggregate_finops_esg_metrics(active_tenant)
     return {
         **stats,
@@ -1287,7 +1302,7 @@ async def get_graph_stats(active_tenant: str = Depends(resolve_active_tenant)):
 # ------------------------------------------------------------------------------
 @app.get("/api/graph/topology")
 async def get_graph_topology(active_tenant: str = Depends(resolve_active_tenant)):
-    _, latency_ms = cloud_pool.get_tenant_graph(active_tenant)
+    latency_ms = hydrate_tenant_state_from_graph(active_tenant)
     state = cloud_pool.store[active_tenant]
     prefix = TENANT_CONFIGS[active_tenant]["prefix"]
 
@@ -1377,6 +1392,7 @@ async def get_graph_topology(active_tenant: str = Depends(resolve_active_tenant)
 # ------------------------------------------------------------------------------
 @app.get("/api/buckets/dark")
 async def get_dark_storage_buckets(active_tenant: str = Depends(resolve_active_tenant)):
+    hydrate_tenant_state_from_graph(active_tenant)
     state = cloud_pool.store[active_tenant]
     results: List[Dict[str, Any]] = []
 
@@ -1419,6 +1435,7 @@ async def post_agent_analyze_prune(
 ):
     tenant = payload.tenant if payload.tenant in SUPPORTED_TENANTS else active_tenant
     target_id = payload.get_bucket_id()
+    hydrate_tenant_state_from_graph(tenant)
     state = cloud_pool.store[tenant]
 
     bucket = next(
@@ -1455,10 +1472,12 @@ async def post_agent_analyze_prune(
         "connected_pipelines": sherlock_res["connected_pipes"],
         "highlighted_node_ids": sherlock_res["highlighted_node_ids"],
         "raw_cypher_query": sherlock_res["raw_cypher_query"],
+        "reasoning_source": sherlock_res["reasoning_source"],
+        "cypher_latency_ms": sherlock_res["cypher_latency_ms"],
         "thought_stream": [
             scout_res["thought_log"],
             sherlock_res["thought_log"],
-            f"[GuardianAgent]: Committed episodic memory node ({memory_node['id']}) to graph.",
+            f"[GuardianAgent]: Recorded episodic memory ({memory_node['id']}) via {memory_node.get('persistence_mode', 'in_memory_demo')}.",
         ],
         "recorded_memory": memory_node,
     }
@@ -1471,10 +1490,20 @@ async def post_agent_analyze_prune(
 async def post_agent_execute_prune(
     payload: ExecutePruneRequestModel,
     active_tenant: str = Depends(resolve_active_tenant),
+    admin_key: Optional[str] = Header(default=None, alias="X-Admin-Key"),
 ):
     tenant = payload.tenant if payload.tenant in SUPPORTED_TENANTS else active_tenant
     target_id = payload.get_bucket_id()
     force_flag = payload.is_forced()
+    if force_flag:
+        if not AURA_ADMIN_API_KEY:
+            raise HTTPException(
+                status_code=503,
+                detail="Security override is disabled. Configure AURA_ADMIN_API_KEY on the server before enabling forced cleanup.",
+            )
+        if not admin_key or not secrets.compare_digest(admin_key, AURA_ADMIN_API_KEY):
+            raise HTTPException(status_code=403, detail="Invalid or missing admin override key.")
+    hydrate_tenant_state_from_graph(tenant)
     state = cloud_pool.store[tenant]
 
     bucket = next(
@@ -1483,6 +1512,8 @@ async def post_agent_execute_prune(
     )
     if bucket is None:
         raise HTTPException(status_code=404, detail=f"Bucket '{target_id}' not found in tenant '{tenant}'.")
+    if bucket.get("pruned"):
+        raise HTTPException(status_code=409, detail=f"Bucket '{target_id}' is already marked as pruned.")
 
     sherlock_res = SherlockReasonerAgent.trace_blast_radius(tenant, state, bucket)
     if not sherlock_res["safe_to_prune"] and not force_flag:
@@ -1497,10 +1528,11 @@ async def post_agent_execute_prune(
     bucket["pruned"] = True
     now_iso = current_utc_iso()
     mem_id = f"mem-clean-{uuid.uuid4().hex[:6]}"
-    verdict_tag = "[OVERRIDE CLEANUP COMPLETED]" if force_flag and not sherlock_res["safe_to_prune"] else "[SAFE CLEANUP COMPLETED]"
+    verdict_tag = "[OVERRIDE METADATA PRUNE]" if force_flag and not sherlock_res["safe_to_prune"] else "[SAFE METADATA PRUNE]"
     summary_text = (
-        f"Cleaned up {bucket['id']} ({bucket['mass_tb']} TB). Saved ${bucket['monthly_cost_usd']}/mo "
-        f"and {bucket['carbon_kg']} kg CO2e under {ARCHITECT_HANDLE}."
+        f"Marked {bucket['id']} ({bucket['mass_tb']} TB) as pruned in graph metadata. "
+        f"Estimated impact: ${bucket['monthly_cost_usd']}/mo and {bucket['carbon_kg']} kg CO2e. "
+        "No external cloud storage object was deleted."
     )
 
     prune_mem: Dict[str, Any] = {
@@ -1512,11 +1544,12 @@ async def post_agent_execute_prune(
         "memory_type": "EPISODIC_PRUNE_SIGN_OFF",
         "verdict": verdict_tag,
         "summary": summary_text,
-        "rule": "Procedural Rule: Verified storage cleanup committed permanently to FalkorDB episodic graph.",
-        "rule_learned": "Procedural Rule: Verified storage cleanup committed permanently to FalkorDB episodic graph.",
+        "rule": "Demo action: bucket metadata marked pruned in the graph; no external cloud object was deleted.",
+        "rule_learned": "Demo action: bucket metadata marked pruned in the graph; no external cloud object was deleted.",
         "owner": ARCHITECT_HANDLE,
-        "timestamp": "Live Session • Verified",
+        "timestamp": now_iso,
         "created_at": now_iso,
+        "persistence_mode": "falkordb_cloud" if cloud_pool.cloud_connected else "in_memory_demo",
         "embedding": GraphRAGSemanticEngine.compute_embedding(f"{bucket['id']} {verdict_tag} {summary_text}"),
     }
     state["memories"].insert(0, prune_mem)
@@ -1537,6 +1570,8 @@ async def post_agent_execute_prune(
         "saved_carbon_kg": bucket["carbon_kg"],
         "recorded_memory": prune_mem,
         "updated_stats": aggregate_finops_esg_metrics(tenant),
+        "execution_mode": "graph_metadata_only",
+        "notice": "This demo marks graph metadata as pruned; it does not delete objects from AWS, GCP, Azure, or any external storage provider.",
     }
 
 
@@ -1550,10 +1585,13 @@ async def post_chaos_inject(
 ):
     body = payload or ChaosInjectRequestModel()
     tenant = body.tenant if body.tenant in SUPPORTED_TENANTS else active_tenant
+    hydrate_tenant_state_from_graph(tenant)
     state = cloud_pool.store[tenant]
 
     short_id = uuid.uuid4().hex[:4]
-    rogue_id = body.custom_bucket_name or f"bkt-rogue-shadow-trap-{short_id}"
+    rogue_id = (body.custom_bucket_name or f"bkt-rogue-shadow-trap-{short_id}").strip()
+    if not rogue_id or len(rogue_id) > 80 or any(not (ch.isalnum() or ch in "-_:." ) for ch in rogue_id):
+        raise HTTPException(status_code=422, detail="custom_bucket_name may contain only letters, numbers, dot, colon, underscore and hyphen (max 80 chars).")
     now_iso = current_utc_iso()
 
     rogue_bucket: Dict[str, Any] = {
@@ -1635,6 +1673,7 @@ async def post_chaos_reset(
 ):
     body = payload or ChaosResetRequestModel()
     tenant = body.tenant if body.tenant in SUPPORTED_TENANTS else active_tenant
+    hydrate_tenant_state_from_graph(tenant)
 
     if body.restore_all_pruned:
         cloud_pool.store[tenant] = generate_tenant_baseline(tenant)
@@ -1656,20 +1695,115 @@ async def post_chaos_reset(
 # ------------------------------------------------------------------------------
 # 9. GET /api/memory/vault (PLUS /api/agent/memories ALIAS)
 # ------------------------------------------------------------------------------
+def hydrate_tenant_state_from_graph(tenant: str) -> float:
+    """Refresh durable bucket, memory, rule and trace state from FalkorDB when available."""
+    graph, latency_ms = cloud_pool.get_tenant_graph(tenant)
+    if graph is None:
+        return latency_ms
+    state = cloud_pool.store[tenant]
+    try:
+        bucket_result = graph.query(
+            "MATCH (b:Bucket) RETURN b.id, b.pruned, b.idle_days, b.size_gb, "
+            "b.monthly_cost_usd, b.carbon_kg, b.sensitivity"
+        )
+        by_id = {b["id"]: b for b in state["buckets"]}
+        for row in getattr(bucket_result, "result_set", []) or []:
+            if not row or row[0] not in by_id:
+                continue
+            bucket = by_id[row[0]]
+            if len(row) > 1 and row[1] is not None: bucket["pruned"] = bool(row[1])
+            if len(row) > 2 and row[2] is not None: bucket["idle_days"] = int(row[2])
+            if len(row) > 3 and row[3] is not None: bucket["size_gb"] = int(row[3])
+            if len(row) > 4 and row[4] is not None: bucket["monthly_cost_usd"] = float(row[4])
+            if len(row) > 5 and row[5] is not None: bucket["carbon_kg"] = float(row[5])
+            if len(row) > 6 and row[6] is not None: bucket["sensitivity"] = str(row[6])
+
+        memory_result = graph.query(
+            "MATCH (m:Memory) OPTIONAL MATCH (m)-[:ABOUT_BUCKET]->(b:Bucket) "
+            "RETURN m.id, m.session, coalesce(m.bucket, b.id), m.memory_type, "
+            "m.verdict, m.summary, m.rule, m.owner, m.created_at "
+            "ORDER BY m.created_at DESC LIMIT 100"
+        )
+        graph_memories = []
+        for row in getattr(memory_result, "result_set", []) or []:
+            if not row: continue
+            graph_memories.append({
+                "id": row[0] or f"memory-{uuid.uuid4().hex[:8]}",
+                "session": row[1] or "Persistent Graph Session",
+                "session_id": row[1] or "Persistent Graph Session",
+                "bucket": row[2] or "Unknown bucket",
+                "bucket_name": row[2] or "Unknown bucket",
+                "memory_type": row[3] or "EPISODIC_MEMORY",
+                "verdict": row[4] or "RECORDED",
+                "summary": row[5] or "",
+                "rule": row[6] or "",
+                "owner": row[7] or ARCHITECT_HANDLE,
+                "timestamp": row[8] or "Stored in FalkorDB",
+                "created_at": row[8] or "",
+                "persistence_mode": "falkordb_cloud",
+            })
+        if graph_memories:
+            state["memories"] = graph_memories
+
+        rule_result = graph.query(
+            "MATCH (r:ProceduralRule) RETURN r.id, r.code, r.title, r.rule_text, r.owner, r.created_at LIMIT 100"
+        )
+        graph_rules = []
+        for row in getattr(rule_result, "result_set", []) or []:
+            if not row: continue
+            graph_rules.append({
+                "id": row[0] or "graph-rule",
+                "code": row[1] or "GRAPH_RULE",
+                "title": row[2] or "Graph governance rule",
+                "rule_text": row[3] or "",
+                "owner": row[4] or ARCHITECT_HANDLE,
+                "created_at": row[5] or "",
+            })
+        if graph_rules:
+            state["procedural_rules"] = graph_rules
+
+        trace_result = graph.query(
+            "MATCH (t:TraceLog) OPTIONAL MATCH (t)-[:TRACED_ON]->(b:Bucket) "
+            "RETURN t.id, coalesce(t.bucket_id, b.id), t.agent, t.severity, t.raw_text, t.owner, t.created_at "
+            "ORDER BY t.created_at DESC LIMIT 100"
+        )
+        graph_traces = []
+        for row in getattr(trace_result, "result_set", []) or []:
+            if not row: continue
+            raw_text = row[4] or ""
+            graph_traces.append({
+                "trace_id": row[0] or f"trace-{uuid.uuid4().hex[:8]}",
+                "bucket_id": row[1] or "Unknown bucket",
+                "agent": row[2] or "UnknownAgent",
+                "severity": row[3] or "INFO",
+                "raw_text": raw_text,
+                "owner": row[5] or ARCHITECT_HANDLE,
+                "created_at": row[6] or "",
+                "embedding": GraphRAGSemanticEngine.compute_embedding(raw_text),
+            })
+        if graph_traces:
+            state["unstructured_traces"] = graph_traces
+    except Exception as exc:
+        db_logger.warning("Could not hydrate persistent tenant state for '%s': %s", tenant, exc)
+    return latency_ms
+
+
 @app.get("/api/memory/vault")
 @app.get("/api/agent/memories")
 async def get_episodic_memory_vault(active_tenant: str = Depends(resolve_active_tenant)):
-    _, latency_ms = cloud_pool.get_tenant_graph(active_tenant)
+    latency_ms = hydrate_tenant_state_from_graph(active_tenant)
     state = cloud_pool.store[active_tenant]
     return {
         "tenant": active_tenant,
         "owner": ARCHITECT_HANDLE,
         "lead_architect": ARCHITECT_NAME,
+        "persistence_mode": "falkordb_cloud" if cloud_pool.cloud_connected else "in_memory_demo",
         "memories_count": len(state["memories"]),
         "procedural_rules_count": len(state["procedural_rules"]),
         "falkordb_latency_ms": latency_ms,
         "memories": state["memories"],
         "procedural_rules": state["procedural_rules"],
+        "unstructured_traces_count": len(state["unstructured_traces"]),
     }
 
 
@@ -1686,6 +1820,7 @@ async def post_graphrag_semantic_search(
     active_tenant: str = Depends(resolve_active_tenant),
 ):
     tenant = payload.tenant if payload.tenant in SUPPORTED_TENANTS else active_tenant
+    hydrate_tenant_state_from_graph(tenant)
     state = cloud_pool.store[tenant]
     search_results = GraphRAGSemanticEngine.semantic_search(
         state=state,
@@ -1706,7 +1841,10 @@ async def post_graphrag_ingest_trace(
     active_tenant: str = Depends(resolve_active_tenant),
 ):
     tenant = payload.tenant if payload.tenant in SUPPORTED_TENANTS else active_tenant
+    hydrate_tenant_state_from_graph(tenant)
     state = cloud_pool.store[tenant]
+    if not any(b["id"] == payload.bucket_id for b in state["buckets"]):
+        raise HTTPException(status_code=404, detail=f"Bucket '{payload.bucket_id}' not found in tenant '{tenant}'.")
     now_iso = current_utc_iso()
     trace_id = f"trace-{uuid.uuid4().hex[:6]}"
     emb = GraphRAGSemanticEngine.compute_embedding(f"{payload.bucket_id} {payload.raw_text}")
@@ -1726,8 +1864,9 @@ async def post_graphrag_ingest_trace(
     cloud_pool.run_cypher(
         tenant,
         f"MATCH (b:Bucket {{id: '{sanitize_cypher(payload.bucket_id)}'}}) "
-        f"CREATE (tr:TraceLog {{id: '{trace_id}', agent: '{sanitize_cypher(trace_node['agent'])}', "
-        f"severity: '{sanitize_cypher(trace_node['severity'])}', raw_text: '{sanitize_cypher(payload.raw_text)}', "
+        f"CREATE (tr:TraceLog {{id: '{trace_id}', bucket_id: '{sanitize_cypher(payload.bucket_id)}', "
+        f"agent: '{sanitize_cypher(trace_node['agent'])}', severity: '{sanitize_cypher(trace_node['severity'])}', "
+        f"raw_text: '{sanitize_cypher(payload.raw_text)}', "
         f"owner: '{ARCHITECT_HANDLE}', created_at: '{now_iso}'}}) "
         f"CREATE (tr)-[:TRACED_ON]->(b)",
     )
@@ -1746,6 +1885,7 @@ async def get_graphrag_bucket_context(
     bucket_id: str = FastAPIPath(..., description="Target storage bucket ID"),
     active_tenant: str = Depends(resolve_active_tenant),
 ):
+    hydrate_tenant_state_from_graph(active_tenant)
     state = cloud_pool.store[active_tenant]
     bucket = next(
         (b for b in state["buckets"] if b["id"] == bucket_id or b["name"] == bucket_id),

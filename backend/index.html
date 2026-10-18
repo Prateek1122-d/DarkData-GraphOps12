@@ -425,7 +425,7 @@
           onclick="triggerAutoCleanup()"
           class="px-3.5 py-1.5 rounded-lg btn-holo-primary text-xs font-bold flex items-center gap-1.5 cursor-pointer"
         >
-          <span id="autocleanup-btn-text">🧹 Run Auto-Cleanup</span>
+          <span id="autocleanup-btn-text">🧹 Run Safe Graph Actions</span>
         </button>
 
         <button
@@ -516,31 +516,31 @@
       <div class="mt-1.5 font-mono-code text-xl font-extrabold text-theme-danger">
         <span id="kpi-prod-locks">5</span> Secured
       </div>
-      <div class="text-[11px] text-slate-400 mt-1">Outages prevented automatically</div>
+      <div class="text-[11px] text-slate-400 mt-1">Production dependency checks applied</div>
     </div>
 
     <!-- Metric 4: Storage Reclaimed -->
     <div class="kpi-card-3d rounded-2xl p-3.5 border-l-4" style="border-left-color: var(--primary);">
       <div class="flex items-center justify-between text-xs font-semibold text-slate-400">
-        <span>Storage Reclaimed</span>
+        <span>Projected Reclaim</span>
         <i data-lucide="hard-drive" class="w-4 h-4 text-theme-primary"></i>
       </div>
       <div class="mt-1.5 font-mono-code text-xl font-extrabold text-theme-primary">
         <span id="kpi-reclaimed-gb">14,200</span> GB
       </div>
-      <div class="text-[11px] text-slate-400 mt-1">Cleaned up safely</div>
+      <div class="text-[11px] text-slate-400 mt-1">Demo estimate • graph metadata only</div>
     </div>
 
     <!-- Metric 5: Monthly Money Saved -->
     <div class="kpi-card-3d rounded-2xl p-3.5 border-l-4" style="border-left-color: var(--success);">
       <div class="flex items-center justify-between text-xs font-semibold text-slate-400">
-        <span>Monthly Money Saved</span>
+        <span>Estimated Monthly Savings</span>
         <i data-lucide="dollar-sign" class="w-4 h-4 text-theme-success"></i>
       </div>
       <div class="mt-1.5 font-mono-code text-xl font-extrabold text-white">
         $<span id="kpi-monthly-saved">1,840</span> <span class="text-xs font-normal text-slate-400">/mo</span>
       </div>
-      <div id="kpi-annual-saved" class="text-[11px] text-theme-success font-semibold mt-1">$22,080 saved per year</div>
+      <div id="kpi-annual-saved" class="text-[11px] text-theme-success font-semibold mt-1">$22,080 estimated annual savings</div>
     </div>
 
     <!-- Metric 6: Carbon Footprint Offset -->
@@ -958,7 +958,7 @@
           </button>
 
           <button
-            onclick="window.print()"
+            onclick="printExecutiveAuditReport()"
             class="px-5 py-2 rounded-xl btn-holo-primary text-xs font-extrabold flex items-center gap-1.5 cursor-pointer"
           >
             <i data-lucide="printer" class="w-4 h-4"></i>
@@ -975,6 +975,10 @@
   <!-- ===================================================================== -->
   <script>
     const API_BASE = window.location.protocol === "file:" ? "http://127.0.0.1:8000" : "";
+    const escapeHTML = value => String(value ?? "").replace(/[&<>"']/g, ch => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+    })[ch]);
+    const jsStringArg = value => escapeHTML(JSON.stringify(String(value ?? "")));
 
     // Centralized State Management (AppState — Solo Owned by @prateek)
     const AppState = {
@@ -998,7 +1002,9 @@
       visNetwork: null,
       visNodes: null,
       visEdges: null,
-      rawGraph: { nodes: [], edges: [] }
+      rawGraph: { nodes: [], edges: [] },
+      apiGraphTopology: null,
+      graphMode: "in_memory_demo"
     };
 
     // =========================================================================
@@ -1232,12 +1238,13 @@
     }
 
     function applyTacticalTheme(themeName) {
+      streamTerminalStep("UIAgent", `Applying [${String(themeName).toUpperCase()}] theme...`, "secondary");
       AppState.theme = themeName;
       document.documentElement.setAttribute("data-theme", themeName);
       localStorage.setItem("auragraph_vip_theme", themeName);
       document.getElementById("theme-switcher-select").value = themeName;
       initVisTopologyRadar();
-      streamTerminalStep("GuardianAgent", `Switched War Room tactical palette to [${themeName.toUpperCase()}] for @prateek.`, "primary");
+      streamTerminalStep("UIAgent", `Theme applied successfully: [${themeName.toUpperCase()}].`, "primary");
     }
 
     // =========================================================================
@@ -1245,6 +1252,32 @@
     // =========================================================================
     function buildVisGraphNodesAndEdges() {
       const palette = getActiveThemePalette();
+      if (AppState.apiGraphTopology && Array.isArray(AppState.apiGraphTopology.nodes)) {
+        const nodes = AppState.apiGraphTopology.nodes.map(node => {
+          const category = node.category || "Graph Entity";
+          const background = category === "Idle Storage Bucket" ? palette.danger :
+            category === "Data Pipeline" ? palette.secondary :
+            category === "Team" ? palette.warning : palette.primary;
+          const border = category === "Idle Storage Bucket" && node.safe_to_prune ? palette.primary : "#FFFFFF";
+          return {
+            ...node,
+            color: { background, border },
+            font: { color: "#FFFFFF", face: "Fira Code", size: category === "Team" ? 9 : 10 },
+            shadow: { enabled: true, color: background, size: category === "Idle Storage Bucket" ? 15 : 12 },
+            size: node.size || (category === "Production Service" ? 18 : category === "Team" ? 14 : 16)
+          };
+        });
+        const edges = (AppState.apiGraphTopology.edges || []).map((edge, index) => ({
+          id: `api-edge-${index}`,
+          ...edge,
+          arrows: "to",
+          width: 1.5,
+          color: { color: "rgba(148, 163, 184, 0.35)", highlight: palette.primary },
+          font: { size: 8, color: "#64748B", face: "Fira Code", strokeWidth: 0 },
+          smooth: { type: "continuous" }
+        }));
+        return { nodes, edges };
+      }
       const prefix =
         AppState.activeTenant === "fincorp_sec_graph" ? "fin" :
         AppState.activeTenant === "healthcare_hipaa_graph" ? "hlth" : "ops";
@@ -1388,6 +1421,10 @@
 
     function initVisTopologyRadar() {
       const container = document.getElementById("vis-topology-canvas");
+      if (!container) {
+        console.error("AURA-GRAPH: #vis-topology-canvas container is missing.");
+        return;
+      }
       const graphData = buildVisGraphNodesAndEdges();
       const palette = getActiveThemePalette();
       AppState.rawGraph = graphData;
@@ -1416,21 +1453,28 @@
             damping: 0.09
           }
         },
+        autoResize: true,
         interaction: {
-          /*
-           * Disable Vis.js hover processing and tooltip creation.
-           * Click inspection, zoom and drag remain available.
-           */
+          // Keep pointer hover processing disabled: node selection is click-based.
           hover: false,
+          hoverConnectedEdges: false,
           tooltipDelay: 0,
           zoomView: true,
           dragView: true,
+          dragNodes: true,
+          selectable: true,
+          multiselect: false,
           hideEdgesOnDrag: false,
           hideNodesOnDrag: false
         }
       };
 
-      if (AppState.visNetwork) AppState.visNetwork.destroy();
+      if (AppState.visNetwork) {
+        try { AppState.visNetwork.destroy(); } catch (error) {
+          console.warn("AURA-GRAPH: previous Vis Network instance could not be destroyed cleanly.", error);
+        }
+        AppState.visNetwork = null;
+      }
       AppState.visNetwork = new vis.Network(
         container,
         { nodes: AppState.visNodes, edges: AppState.visEdges },
@@ -1503,9 +1547,20 @@
 
     function restoreGraphDefaultColors() {
       const palette = getActiveThemePalette();
-      AppState.rawGraph.nodes.forEach(n => {
-        if (AppState.visNodes.get(n.id)) {
-          AppState.visNodes.update({
+      const nodes = AppState.rawGraph && Array.isArray(AppState.rawGraph.nodes) ? AppState.rawGraph.nodes : null;
+      const visNodes = AppState.visNodes;
+      const visEdges = AppState.visEdges;
+
+      // The graph may still be loading while dashboard actions are already available.
+      // Treat an uninitialized vis-data store as a no-op instead of crashing the action.
+      if (!nodes || !visNodes || typeof visNodes.get !== "function" || typeof visNodes.update !== "function" ||
+          !visEdges || typeof visEdges.get !== "function" || typeof visEdges.update !== "function") {
+        return false;
+      }
+
+      nodes.forEach(n => {
+        if (visNodes.get(n.id)) {
+          visNodes.update({
             id: n.id,
             color: n.color,
             shadow: n.shadow,
@@ -1514,24 +1569,32 @@
           });
         }
       });
-      AppState.visEdges.get().forEach(e => {
-        AppState.visEdges.update({
+      visEdges.get().forEach(e => {
+        visEdges.update({
           id: e.id,
           color: { color: "rgba(148, 163, 184, 0.35)", highlight: palette.primary },
           width: 1.5
         });
       });
+      return true;
     }
 
     function centerRadarCamera() {
-      restoreGraphDefaultColors();
-      if (AppState.visNetwork) {
+      const graphRestored = restoreGraphDefaultColors();
+      if (AppState.visNetwork && typeof AppState.visNetwork.fit === "function") {
         AppState.visNetwork.fit({ animation: { duration: 500, easingFunction: "easeInOutQuad" } });
+        streamTerminalStep("UIAgent", graphRestored ? "Graph camera centered and default colors restored." : "Graph is still initializing; continuing scan without camera reset.", graphRestored ? "primary" : "secondary");
+      } else {
+        streamTerminalStep("UIAgent", "Graph camera not ready; continuing scan without camera reset.", "secondary");
       }
     }
 
     function filterRadarGraph(mode) {
-      restoreGraphDefaultColors();
+      const graphReady = restoreGraphDefaultColors();
+      if (!graphReady) {
+        streamTerminalStep("UIAgent", `Graph filter [${mode}] unavailable: graph is still initializing.`, "warning");
+        return;
+      }
       AppState.rawGraph.nodes.forEach(n => {
         if (!AppState.visNodes.get(n.id)) return;
         if (mode === "ALL") {
@@ -1544,7 +1607,13 @@
           AppState.visNodes.update({ id: n.id, hidden: !keep });
         }
       });
-      AppState.visNetwork.fit({ animation: true });
+      if (AppState.visNetwork) {
+        AppState.visNetwork.fit({ animation: true });
+        const visible = AppState.visNodes.get().filter(node => !node.hidden).length;
+        streamTerminalStep("UIAgent", `Graph filter [${mode}] applied. Visible nodes: ${visible}.`, "primary");
+      } else {
+        streamTerminalStep("UIAgent", `Graph filter [${mode}] could not run: graph network is not initialized.`, "warning");
+      }
     }
 
     // =========================================================================
@@ -1571,8 +1640,10 @@
       document.getElementById("matrix-active-count-badge").textContent = `${activeUnpruned} Active`;
 
       container.innerHTML = filtered.map(b => {
-        const sizeTb = (b.size_gb / 1000).toFixed(1);
+        const sizeTb = (Number(b.size_gb || 0) / 1000).toFixed(1);
         const isSelected = AppState.selectedNodeId === b.id;
+        const safeId = escapeHTML(b.id);
+        const idArg = jsStringArg(b.id);
 
         let badgeStyle = "btn-holo-primary";
         if (b.verdict_code === "BLOCKED_PROD") badgeStyle = "btn-holo-warning";
@@ -1580,17 +1651,17 @@
 
         return `
           <div
-            onclick="selectAndFocusGraphNode('${b.id}')"
+            onclick="selectAndFocusGraphNode(${idArg})"
             class="bucket-card-3d rounded-2xl p-4 cursor-pointer space-y-3 ${isSelected ? "selected-bucket" : ""} ${b.pruned ? "opacity-45" : ""}"
           >
             <!-- Top Row: Bucket ID & Plain-English Verdict Badge -->
             <div class="flex flex-wrap items-center justify-between gap-2">
               <div class="font-mono-code text-xs font-extrabold text-white flex items-center gap-1.5">
                 <i data-lucide="database" class="w-4 h-4 text-theme-primary"></i>
-                <span>${b.id}</span>
+                <span>${safeId}</span>
               </div>
               <span class="text-[10px] font-mono-code font-bold px-2.5 py-0.5 rounded-md ${badgeStyle}">
-                ${b.pruned ? "[CLEANED UP ✓]" : b.verdict_label}
+                ${b.pruned ? "[PRUNED IN GRAPH ✓]" : escapeHTML(b.verdict_label)}
               </span>
             </div>
 
@@ -1598,7 +1669,7 @@
             <div class="grid grid-cols-4 gap-2 py-2 px-3 rounded-xl bg-black/60 border border-white/10 font-mono-code text-[11px]">
               <div>
                 <span class="text-slate-400">Idle:</span>
-                <strong class="text-theme-warning ml-1">${b.idle_days}d</strong>
+                <strong class="text-theme-warning ml-1">${Number(b.idle_days || 0)}d</strong>
               </div>
               <div>
                 <span class="text-slate-400">Size:</span>
@@ -1606,7 +1677,7 @@
               </div>
               <div>
                 <span class="text-slate-400">Cost:</span>
-                <strong class="text-theme-primary ml-1">$${b.monthly_cost_usd}/m</strong>
+                <strong class="text-theme-primary ml-1">$${Number(b.monthly_cost_usd || 0)}/m</strong>
               </div>
               <div>
                 <span class="text-slate-400">Owner:</span>
@@ -1615,7 +1686,7 @@
             </div>
 
             <!-- Plain-English Summary -->
-            <p class="text-xs text-slate-300 leading-relaxed">${b.explanation}</p>
+            <p class="text-xs text-slate-300 leading-relaxed">${escapeHTML(b.explanation)}</p>
 
             <!-- Action Buttons Per Card -->
             ${
@@ -1623,7 +1694,7 @@
                 ? ""
                 : `<div class="grid grid-cols-3 gap-2 pt-1">
                     <button
-                      onclick="event.stopPropagation(); actionInvestigateConnections('${b.id}')"
+                      onclick="event.stopPropagation(); actionInvestigateConnections(${idArg})"
                       class="py-2 px-2 rounded-xl btn-holo-primary text-[11px] font-bold flex items-center justify-center gap-1 cursor-pointer"
                     >
                       <i data-lucide="git-branch" class="w-3.5 h-3.5"></i>
@@ -1631,7 +1702,7 @@
                     </button>
 
                     <button
-                      onclick="event.stopPropagation(); actionRunAutonomousCleanup('${b.id}', false)"
+                      onclick="event.stopPropagation(); actionRunAutonomousCleanup(${idArg}, false)"
                       ${!b.safe_to_prune ? "disabled" : ""}
                       class="py-2 px-2 rounded-xl ${
                         b.safe_to_prune
@@ -1640,11 +1711,11 @@
                       } text-[11px] font-bold flex items-center justify-center gap-1"
                     >
                       <i data-lucide="sparkles" class="w-3.5 h-3.5"></i>
-                      <span>Run Autonomous Cleanup</span>
+                      <span>Mark Safe in Graph</span>
                     </button>
 
                     <button
-                      onclick="event.stopPropagation(); actionRequestOverride('${b.id}')"
+                      onclick="event.stopPropagation(); actionRequestOverride(${idArg})"
                       class="py-2 px-2 rounded-xl btn-holo-danger text-[11px] font-bold flex items-center justify-center gap-1 cursor-pointer"
                     >
                       <i data-lucide="key" class="w-3.5 h-3.5"></i>
@@ -1681,7 +1752,7 @@
         document.getElementById("dna-idle-days").textContent = `${bucket.idle_days} Days`;
 
         const vBadge = document.getElementById("dna-verdict-badge");
-        vBadge.textContent = bucket.pruned ? "[CLEANED UP ✓]" : bucket.verdict_label;
+        vBadge.textContent = bucket.pruned ? "[PRUNED IN GRAPH ✓]" : bucket.verdict_label;
         vBadge.className = `inline-block text-xs font-mono-code font-bold px-2.5 py-1 rounded ${
           bucket.safe_to_prune ? "btn-holo-primary" : "btn-holo-danger"
         }`;
@@ -1690,7 +1761,7 @@
 
         const deps = [...bucket.connected_services, ...bucket.connected_pipes];
         document.getElementById("dna-connected-list").innerHTML = deps.length
-          ? deps.map(d => `<span class="px-2.5 py-1 rounded-lg bg-white/10 text-xs font-mono-code text-white">${d}</span>`).join("")
+          ? deps.map(d => `<span class="px-2.5 py-1 rounded-lg bg-white/10 text-xs font-mono-code text-white">${escapeHTML(d)}</span>`).join("")
           : `<span class="px-2.5 py-1 rounded-lg btn-holo-primary text-xs font-mono-code">✓ 0 Live Production Connections</span>`;
       } else {
         document.getElementById("dna-node-category").textContent = (visNode && visNode.category) ? visNode.category.toUpperCase() : "CLOUD NODE";
@@ -1708,7 +1779,7 @@
 
         document.getElementById("dna-connected-list").innerHTML = connectedIds
           .filter(id => id !== nodeId)
-          .map(id => `<span class="px-2.5 py-1 rounded-lg bg-white/10 text-xs font-mono-code text-white">${id}</span>`)
+          .map(id => `<span class="px-2.5 py-1 rounded-lg bg-white/10 text-xs font-mono-code text-white">${escapeHTML(id)}</span>`)
           .join("");
       }
 
@@ -1722,32 +1793,105 @@ RETURN b.id, collect(distinct s.id) AS connected_services, length(path) AS hops;
 
     function closeNodeInspector() {
       document.getElementById("node-dna-drawer").classList.add("translate-x-full");
+      streamTerminalStep("UIAgent", "Node inspector closed.", "secondary");
     }
 
-    function drawerActionQuarantineNode() {
-      if (!AppState.selectedNodeId) return;
-      const bucket = AppState.buckets.find(b => b.id === AppState.selectedNodeId);
-      if (bucket) {
-        actionRunAutonomousCleanup(bucket.id, false);
-      } else {
-        streamTerminalStep("GuardianAgent", `Placed node [${AppState.selectedNodeId}] under @prateek's quarantine monitoring.`, "warning");
+    async function drawerActionQuarantineNode() {
+      const nodeId = AppState.selectedNodeId;
+      if (!nodeId) {
+        streamTerminalStep("GuardianAgent", "Select a graph node first.", "warning");
+        return;
+      }
+      const bucket = AppState.buckets.find(b => b.id === nodeId);
+      if (!bucket) {
+        streamTerminalStep("GuardianAgent", `Quarantine is not supported for node type [${nodeId}]. No change was made.`, "warning");
+        showActionNotice("Not applicable", "Only storage bucket nodes can be quarantined in this version.", "warning");
+        return;
+      }
+      const ok = await actionRunAutonomousCleanup(bucket.id, false);
+      showActionNotice(ok ? "Action completed" : "Action not completed", ok ? `${bucket.id} was marked pruned in graph metadata.` : `The backend did not confirm quarantine for ${bucket.id}. Check the terminal for details.`, ok ? "success" : "error");
+    }
+
+    async function drawerActionBypassLock() {
+      const nodeId = AppState.selectedNodeId;
+      if (!nodeId) {
+        streamTerminalStep("GuardianAgent", "Select a graph node first.", "warning");
+        return;
+      }
+      const bucket = AppState.buckets.find(b => b.id === nodeId);
+      if (!bucket) {
+        streamTerminalStep("GuardianAgent", `Security override is not supported for node [${nodeId}]. No change was made.`, "warning");
+        showActionNotice("Not applicable", "Security override is available only for storage bucket nodes.", "warning");
+        return;
+      }
+      const ok = await actionRunAutonomousCleanup(bucket.id, true);
+      showActionNotice(ok ? "Override completed" : "Override not completed", ok ? `${bucket.id} metadata was updated after backend confirmation.` : "The backend did not confirm the override. Verify the admin key and server configuration.", ok ? "success" : "error");
+    }
+
+    async function drawerActionInspectLineage() {
+      const nodeId = AppState.selectedNodeId;
+      if (!nodeId) {
+        streamTerminalStep("SherlockAgent", "Select a graph node first.", "warning");
+        return;
+      }
+      selectAndFocusGraphNode(nodeId);
+      const bucket = AppState.buckets.find(b => b.id === nodeId);
+      if (!bucket) {
+        const neighbors = AppState.apiGraphTopology?.edges?.filter(e => e.from === nodeId || e.to === nodeId) || [];
+        showActionNotice("Node lineage", neighbors.length ? neighbors.map(e => `${e.from}  →  ${e.to} (${e.label || "RELATED"})`).join("\n") : "No relationship records are available for this node.", "info");
+        return;
+      }
+      try {
+        const response = await fetch(`${API_BASE}/api/graphrag/context/${encodeURIComponent(nodeId)}?tenant=${encodeURIComponent(AppState.activeTenant)}`, { headers: { "X-Tenant-Graph": AppState.activeTenant } });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(result.detail || `Lineage request failed (${response.status})`);
+        const services = result.sherlock_blast_radius?.impacted_production_services || [];
+        const pipes = result.sherlock_blast_radius?.connected_pipelines || [];
+        const details = [`Bucket: ${nodeId}`, `Verdict: ${result.sherlock_blast_radius?.verdict_label || bucket.verdict_label}`, `Services: ${services.join(", ") || "None reported"}`, `Pipelines: ${pipes.join(", ") || "None reported"}`].join("\n");
+        showActionNotice("Lineage retrieved from backend", details, "success");
+        streamTerminalStep("SherlockAgent", `Backend lineage retrieved for ${nodeId}.`, "secondary");
+      } catch (error) {
+        showActionNotice("Lineage failed", error.message, "error");
+        streamTerminalStep("SherlockAgent", `Lineage lookup failed: ${error.message}`, "danger");
       }
     }
 
-    function drawerActionBypassLock() {
-      if (!AppState.selectedNodeId) return;
-      const bucket = AppState.buckets.find(b => b.id === AppState.selectedNodeId);
-      if (bucket) {
-        actionRunAutonomousCleanup(bucket.id, true);
-      } else {
-        streamTerminalStep("GuardianAgent", `Security lock bypass executed by @prateek on [${AppState.selectedNodeId}].`, "danger");
+    function showActionNotice(title, message, tone = "info") {
+      let notice = document.getElementById("aura-action-notice");
+      if (!notice) {
+        notice = document.createElement("div");
+        notice.id = "aura-action-notice";
+        notice.setAttribute("role", "status");
+        notice.style.cssText = "position:fixed;right:20px;bottom:20px;z-index:99999;max-width:min(440px,calc(100vw - 40px));padding:14px 16px;border:1px solid rgba(255,255,255,.22);border-radius:12px;background:#101820;color:#fff;box-shadow:0 12px 40px rgba(0,0,0,.45);white-space:pre-wrap;font:13px/1.5 Inter, sans-serif";
+        document.body.appendChild(notice);
       }
+      const color = tone === "success" ? "#00ff88" : tone === "error" ? "#ff5577" : tone === "warning" ? "#ffbf47" : "#00d9ff";
+      notice.style.borderColor = color;
+      notice.innerHTML = "";
+      const heading = document.createElement("strong"); heading.textContent = title; heading.style.color = color;
+      const body = document.createElement("div"); body.textContent = message;
+      notice.append(heading, body);
+      notice.style.display = "block";
+      clearTimeout(notice._hideTimer);
+      notice._hideTimer = setTimeout(() => { notice.style.display = "none"; }, 6500);
     }
 
-    function drawerActionInspectLineage() {
-      if (!AppState.selectedNodeId) return;
-      selectAndFocusGraphNode(AppState.selectedNodeId);
-      streamTerminalStep("SherlockAgent", `Traced 1..3 hop lineage path for [${AppState.selectedNodeId}] on FalkorDB cloud.`, "secondary");
+    // Keep the dashboard KPI cards synchronized with the current backend metrics.
+    function updateGlobalMetricsBar() {
+      const metrics = AppState.metrics || {};
+      const setText = (id, value) => {
+        const element = document.getElementById(id);
+        if (element) element.textContent = value;
+      };
+      const number = value => Number(value || 0).toLocaleString("en-US", { maximumFractionDigits: 1 });
+      setText("kpi-nodes", number(metrics.totalNodes));
+      setText("kpi-edges", number(metrics.totalEdges));
+      setText("kpi-idle-traps", number(metrics.idleBuckets));
+      setText("kpi-prod-locks", number(metrics.protectedLocks));
+      setText("kpi-reclaimed-gb", number(metrics.reclaimedGb));
+      setText("kpi-monthly-saved", number(metrics.monthlySavedUsd));
+      setText("kpi-annual-saved", `$${number(Number(metrics.monthlySavedUsd || 0) * 12)} estimated annual savings`);
+      setText("kpi-carbon-offset", number(metrics.carbonOffsetKg));
     }
 
     // =========================================================================
@@ -1762,32 +1906,44 @@ RETURN b.id, collect(distinct s.id) AS connected_services, length(path) AS hops;
       streamTerminalStep("SherlockAgent", `Executing 1..3 hop Cypher traversal on FalkorDB cloud for ${bucket.id}...`, "secondary");
 
       try {
-        await fetch(`${API_BASE}/api/agent/analyze-prune?tenant=${AppState.activeTenant}`, {
+        const response = await fetch(`${API_BASE}/api/agent/analyze-prune?tenant=${encodeURIComponent(AppState.activeTenant)}`, {
           method: "POST",
           headers: { "Content-Type": "application/json", "X-Tenant-Graph": AppState.activeTenant },
           body: JSON.stringify({ bucket_id: bucket.id, tenant: AppState.activeTenant, operator: "@prateek" })
         });
-      } catch (_) {}
-
-      setTimeout(() => {
-        streamTerminalStep("GuardianAgent", `Committing episodic memory node to graph: ${bucket.id} -> ${bucket.verdict_label}.`, bucket.safe_to_prune ? "primary" : "danger");
-      }, 280);
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(result.detail || `Analysis failed (${response.status})`);
+        streamTerminalStep("GuardianAgent", `Analysis and episodic verdict recorded for ${bucket.id}: ${result.verdict_label || bucket.verdict_label}.`, bucket.safe_to_prune ? "primary" : "danger");
+      } catch (error) {
+        streamTerminalStep("GuardianAgent", `Analysis could not be confirmed for ${bucket.id}: ${error.message}.`, "danger");
+      }
     }
 
     async function actionRunAutonomousCleanup(bucketId, forceOverride = false) {
       const bucket = AppState.buckets.find(b => b.id === bucketId);
-      if (!bucket || bucket.pruned) return;
+      if (!bucket || bucket.pruned) return false;
 
       if (!bucket.safe_to_prune && !forceOverride) {
-        streamTerminalStep("GuardianAgent", `Blocked cleanup on ${bucket.id}: ${bucket.verdict_label}. Click 'Bypass Security Lock' in the drawer if @prateek authorizes override.`, "danger");
+        streamTerminalStep("GuardianAgent", `Blocked cleanup on ${bucket.id}: ${bucket.verdict_label}. Security lock remains active.`, "danger");
         selectAndFocusGraphNode(bucketId);
-        return;
+        return false;
+      }
+
+      let adminKey = "";
+      if (forceOverride) {
+        adminKey = window.prompt("Enter the server admin override key:") || "";
+        if (!adminKey) {
+          streamTerminalStep("GuardianAgent", "Security override cancelled. No cleanup was attempted.", "warning");
+          return false;
+        }
       }
 
       try {
-        await fetch(`${API_BASE}/api/agent/execute-prune?tenant=${AppState.activeTenant}`, {
+        const requestHeaders = { "Content-Type": "application/json", "X-Tenant-Graph": AppState.activeTenant };
+        if (adminKey) requestHeaders["X-Admin-Key"] = adminKey;
+        const response = await fetch(`${API_BASE}/api/agent/execute-prune?tenant=${encodeURIComponent(AppState.activeTenant)}`, {
           method: "POST",
-          headers: { "Content-Type": "application/json", "X-Tenant-Graph": AppState.activeTenant },
+          headers: requestHeaders,
           body: JSON.stringify({
             bucket_id: bucket.id,
             tenant: AppState.activeTenant,
@@ -1795,42 +1951,31 @@ RETURN b.id, collect(distinct s.id) AS connected_services, length(path) AS hops;
             operator: "@prateek"
           })
         });
-      } catch (_) {}
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(result.detail || `Cleanup request failed (${response.status})`);
 
-      bucket.pruned = true;
-      AppState.metrics.totalNodes = Math.max(1, AppState.metrics.totalNodes - 1);
-      AppState.metrics.idleBuckets = AppState.buckets.filter(b => !b.pruned).length;
-      AppState.metrics.protectedLocks = AppState.buckets.filter(b => !b.pruned && !b.safe_to_prune).length;
-      AppState.metrics.reclaimedGb += bucket.size_gb;
-      AppState.metrics.monthlySavedUsd += bucket.monthly_cost_usd;
-      AppState.metrics.carbonOffsetKg = +(AppState.metrics.carbonOffsetKg + bucket.carbon_kg).toFixed(1);
+        // Update the UI only after the backend confirms the graph metadata mutation.
+        bucket.pruned = true;
+        AppState.metrics.totalNodes = Math.max(1, AppState.metrics.totalNodes - 1);
+        AppState.metrics.idleBuckets = AppState.buckets.filter(b => !b.pruned).length;
+        AppState.metrics.protectedLocks = AppState.buckets.filter(b => !b.pruned && !b.safe_to_prune).length;
+        AppState.metrics.reclaimedGb += Number(result.reclaimed_gb || 0);
+        AppState.metrics.monthlySavedUsd += Number(result.saved_monthly_usd || 0);
+        AppState.metrics.carbonOffsetKg = +(AppState.metrics.carbonOffsetKg + Number(result.saved_carbon_kg || 0)).toFixed(1);
 
-      AppState.memories.unshift({
-        id: `mem-clean-${Math.random().toString(16).slice(2, 6)}`,
-        session: `Session #${AppState.memories.length + 101}`,
-        bucket: bucket.id,
-        verdict: forceOverride ? "[OVERRIDE CLEANUP COMPLETED]" : "[SAFE CLEANUP COMPLETED]",
-        summary: `Cleaned up ${bucket.id} (${(bucket.size_gb / 1000).toFixed(1)} TB). Saved $${bucket.monthly_cost_usd}/mo and ${bucket.carbon_kg} kg CO2e under @prateek.`,
-        rule: "Procedural Rule: Verified storage cleanup committed permanently to FalkorDB episodic graph.",
-        owner: "@prateek",
-        timestamp: "Live Session • Verified"
-      });
+        if (result.recorded_memory) AppState.memories.unshift(result.recorded_memory);
+        if (AppState.visNodes && AppState.visNodes.get(bucket.id)) AppState.visNodes.remove(bucket.id);
 
-      if (AppState.visNodes && AppState.visNodes.get(bucket.id)) {
-        AppState.visNodes.remove(bucket.id);
+        updateGlobalMetricsBar();
+        renderQuarantineCards();
+        closeNodeInspector();
+
+        streamTerminalStep("GuardianAgent", `Graph metadata updated for ${bucket.id}. This demo does not delete real cloud storage objects.`, "primary");
+        return true;
+      } catch (error) {
+        streamTerminalStep("GuardianAgent", `No cleanup was committed for ${bucket.id}: ${error.message}.`, "danger");
+        return false;
       }
-
-      updateGlobalMetricsBar();
-      renderQuarantineCards();
-      closeNodeInspector();
-
-      streamTerminalStep("GuardianAgent", `Cleaned up ${bucket.id}! Reclaimed ${bucket.size_gb.toLocaleString()} GB and saved $${bucket.monthly_cost_usd}/mo for @prateek.`, "primary");
-
-      confetti({
-        particleCount: 60,
-        spread: 68,
-        origin: { y: 0.75 }
-      });
     }
 
     function actionRequestOverride(bucketId) {
@@ -1840,206 +1985,196 @@ RETURN b.id, collect(distinct s.id) AS connected_services, length(path) AS hops;
 
     async function triggerScanIdleData() {
       centerRadarCamera();
+      streamTerminalStep("ReconAgent", "SCAN INITIATED — requesting idle data buckets from the backend...", "primary");
+      streamTerminalStep("SherlockAgent", `Tenant: ${AppState.activeTenant}. Sending bucket discovery request...`, "secondary");
       try {
-        await fetch(`${API_BASE}/api/graph/stats?tenant=${AppState.activeTenant}`, {
+        const response = await fetch(`${API_BASE}/api/buckets/dark?tenant=${encodeURIComponent(AppState.activeTenant)}`, {
           headers: { "X-Tenant-Graph": AppState.activeTenant }
         });
-      } catch (_) {}
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(result.detail || `Bucket scan failed (${response.status})`);
+        AppState.buckets = Array.isArray(result.buckets) ? result.buckets : AppState.buckets;
+        const scanTargets = AppState.buckets.filter(item => !item.pruned);
+        const total = scanTargets.length;
+        streamTerminalStep("ReconAgent", `BUCKET DISCOVERY COMPLETE — ${total} unpruned bucket(s) returned by backend.`, "primary");
 
-      const activeCount = AppState.buckets.filter(b => !b.pruned).length;
-      streamTerminalStep("ReconAgent", `Scanning storage buckets for idle thresholds (>90d)...`, "primary");
-      setTimeout(() => {
-        streamTerminalStep("SherlockAgent", `Executing 1..3 hop Cypher traversal on FalkorDB cloud...`, "secondary");
-      }, 220);
-      setTimeout(() => {
-        streamTerminalStep("GuardianAgent", `Committing episodic memory node to graph (${activeCount} idle traps verified for @prateek)...`, "primary");
-      }, 450);
+        let recorded = 0;
+        let safeCount = 0;
+        for (const [index, bucket] of scanTargets.entries()) {
+          streamTerminalStep("SherlockAgent", `AI AGENT ANALYZING BUCKET ${index + 1}/${total}: ${bucket.id}`, "secondary");
+          const analysisResponse = await fetch(`${API_BASE}/api/agent/analyze-prune?tenant=${encodeURIComponent(AppState.activeTenant)}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "X-Tenant-Graph": AppState.activeTenant },
+            body: JSON.stringify({ bucket_id: bucket.id, tenant: AppState.activeTenant, operator: "@prateek" })
+          });
+          const analysis = await analysisResponse.json().catch(() => ({}));
+          if (!analysisResponse.ok) throw new Error(analysis.detail || `Analysis failed for ${bucket.id}`);
+          bucket.safe_to_prune = analysis.safe_to_prune;
+          bucket.verdict_code = analysis.verdict_code;
+          bucket.verdict_label = analysis.verdict_label;
+          bucket.connected_pipes = analysis.connected_pipelines || [];
+          bucket.connected_services = (analysis.impacted_production_services || []).map(name => `${name} (PROD)`);
+          if (analysis.safe_to_prune === true) safeCount += 1;
+          recorded += 1;
+          streamTerminalStep("GuardianAgent", `ANALYSIS COMPLETED ${recorded}/${total}: ${bucket.id} — ${analysis.verdict_label || "Verdict recorded"}.`, analysis.safe_to_prune === true ? "primary" : "warning");
+        }
+        await switchActiveTenantMirror(AppState.activeTenant, true);
+        streamTerminalStep("GuardianAgent", `SCAN COMPLETED — analyzed ${recorded}/${total} bucket(s); ${safeCount} marked safe, ${recorded - safeCount} require protection/review.`, "primary");
+      } catch (error) {
+        streamTerminalStep("GuardianAgent", `Scan incomplete: ${error.message}. No success was assumed.`, "danger");
+      }
     }
 
-    function triggerAutoCleanup() {
+    async function triggerAutoCleanup() {
       if (AppState.autoCleanupActive) return;
       const safeTargets = AppState.buckets.filter(b => !b.pruned && b.safe_to_prune);
       if (safeTargets.length === 0) {
-        streamTerminalStep("GuardianAgent", "All orphaned safe buckets are already cleaned up! Remaining buckets are protected by Production or PII locks.", "warning");
+        streamTerminalStep("GuardianAgent", "No currently safe orphan buckets are available for cleanup.", "warning");
         return;
       }
 
       AppState.autoCleanupActive = true;
-      document.getElementById("autocleanup-btn-text").textContent = "🧹 Cleaning Safe Buckets...";
-      streamTerminalStep("ReconAgent", `Launching autonomous safety clean-up across ${safeTargets.length} orphaned buckets for @prateek...`, "primary");
-
-      let idx = 0;
-      function cleanNextBucket() {
-        if (idx >= safeTargets.length) {
-          AppState.autoCleanupActive = false;
-          document.getElementById("autocleanup-btn-text").textContent = "🧹 Run Auto-Cleanup";
-          streamTerminalStep("GuardianAgent", "Autonomous safety clean-up complete! All production dependencies remained 100% protected.", "primary");
-          centerRadarCamera();
-          return;
-        }
-        const target = safeTargets[idx];
-        idx++;
+      document.getElementById("autocleanup-btn-text").textContent = "🧹 Marking Safe Buckets...";
+      streamTerminalStep("ReconAgent", `Starting backend-confirmed metadata cleanup for ${safeTargets.length} safe buckets...`, "primary");
+      let completed = 0;
+      let failed = 0;
+      for (const target of safeTargets) {
         selectAndFocusGraphNode(target.id);
-        setTimeout(() => {
-          actionRunAutonomousCleanup(target.id, false);
-          setTimeout(cleanNextBucket, 750);
-        }, 600);
+        const ok = await actionRunAutonomousCleanup(target.id, false);
+        if (ok) completed += 1; else failed += 1;
       }
-      cleanNextBucket();
+      AppState.autoCleanupActive = false;
+      document.getElementById("autocleanup-btn-text").textContent = "🧹 Run Safe Graph Actions";
+      streamTerminalStep("GuardianAgent", `Metadata cleanup finished: ${completed} succeeded, ${failed} failed. External cloud objects were not deleted.`, failed ? "warning" : "primary");
+      centerRadarCamera();
     }
 
     async function triggerChaosSandbox() {
       const code = Math.random().toString(16).slice(2, 6);
       const rogueId = `bkt-rogue-shadow-trap-${code}`;
-
       try {
-        await fetch(`${API_BASE}/api/chaos/inject?tenant=${AppState.activeTenant}`, {
+        const response = await fetch(`${API_BASE}/api/chaos/inject?tenant=${encodeURIComponent(AppState.activeTenant)}`, {
           method: "POST",
           headers: { "Content-Type": "application/json", "X-Tenant-Graph": AppState.activeTenant },
           body: JSON.stringify({ tenant: AppState.activeTenant, operator: "@prateek", custom_bucket_name: rogueId })
         });
-      } catch (_) {}
-
-      const rogueBucket = {
-        id: rogueId,
-        name: rogueId,
-        idle_days: 176,
-        size_gb: 16800,
-        monthly_cost_usd: 2016,
-        carbon_kg: 470.4,
-        sensitivity: "PII_LOCKED",
-        owner: "@prateek",
-        is_chaos: true,
-        verdict_code: "BLOCKED_PROD",
-        verdict_label: "[BLOCKED: LIVE PROD DEPENDENCY]",
-        safe_to_prune: false,
-        pruned: false,
-        connected_pipes: ["pipe-quarterly-recon", "pipe-kyc-verifier"],
-        connected_services: ["BillingService (PROD)", "FraudDetectionEngine (PROD)", "CheckoutAPI (PROD)"],
-        explanation: "CHAOS SANDBOX TRAP: Hidden shadow bucket with 3-hop links to BillingService, FraudDetectionEngine, and CheckoutAPI!"
-      };
-
-      AppState.buckets.unshift(rogueBucket);
-      AppState.metrics.totalNodes += 1;
-      AppState.metrics.totalEdges += 3;
-      AppState.metrics.idleBuckets = AppState.buckets.filter(b => !b.pruned).length;
-      AppState.metrics.protectedLocks = AppState.buckets.filter(b => !b.pruned && !b.safe_to_prune).length;
-
-      AppState.memories.unshift({
-        id: `mem-chaos-${code}`,
-        session: "Chaos Sandbox",
-        bucket: rogueId,
-        is_chaos: true,
-        verdict: "[BLOCKED: LIVE PROD DEPENDENCY]",
-        summary: `Chaos Sandbox injected ${rogueId} (16.8 TB). SherlockAgent & GuardianAgent immediately detected 3 live production services and locked deletion.`,
-        rule: "Procedural Rule: Automatically quarantine unindexed shadow buckets with hidden production links.",
-        owner: "@prateek",
-        timestamp: "Chaos Test • Verified"
-      });
-
-      initVisTopologyRadar();
-      updateGlobalMetricsBar();
-      renderQuarantineCards();
-      selectAndFocusGraphNode(rogueId);
-
-      streamTerminalStep("ReconAgent", `CHAOS ALERT: Injected rogue shadow bucket [${rogueId}] (16.8 TB, $2,016/mo)!`, "danger");
-      streamTerminalStep("GuardianAgent", `Blocked deletion on [${rogueId}] to protect BillingService & FraudDetectionEngine.`, "warning");
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(result.detail || `Chaos injection failed (${response.status})`);
+        await switchActiveTenantMirror(AppState.activeTenant, true);
+        selectAndFocusGraphNode(rogueId);
+        streamTerminalStep("ReconAgent", `CHAOS ALERT: Backend injected rogue bucket [${rogueId}].`, "danger");
+        streamTerminalStep("GuardianAgent", "Security policy analysis refreshed from the tenant graph. Verify the dependency path before judging the block.", "warning");
+      } catch (error) {
+        streamTerminalStep("GuardianAgent", `Chaos injection failed: ${error.message}.`, "danger");
+      }
     }
 
     async function triggerChaosReset() {
       try {
-        await fetch(`${API_BASE}/api/chaos/reset?tenant=${AppState.activeTenant}`, {
+        const response = await fetch(`${API_BASE}/api/chaos/reset?tenant=${encodeURIComponent(AppState.activeTenant)}`, {
           method: "POST",
           headers: { "Content-Type": "application/json", "X-Tenant-Graph": AppState.activeTenant },
           body: JSON.stringify({ tenant: AppState.activeTenant, operator: "@prateek" })
         });
-      } catch (_) {}
-
-      const fresh = createTenantDataset(AppState.activeTenant);
-      AppState.buckets = fresh.buckets;
-      AppState.memories = fresh.memories;
-      AppState.metrics = {
-        totalNodes: 45,
-        totalEdges: 81,
-        idleBuckets: 10,
-        protectedLocks: 5,
-        reclaimedGb: 14200,
-        monthlySavedUsd: 1840,
-        carbonOffsetKg: 412.8
-      };
-
-      initVisTopologyRadar();
-      updateGlobalMetricsBar();
-      renderQuarantineCards();
-      closeNodeInspector();
-      streamTerminalStep("GuardianAgent", `Reset Chaos Sandbox and restored baseline 45-node topology for @prateek.`, "primary");
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(result.detail || `Chaos reset failed (${response.status})`);
+        await switchActiveTenantMirror(AppState.activeTenant, true);
+        closeNodeInspector();
+        streamTerminalStep("GuardianAgent", "Chaos test data removed. Current tenant graph reloaded from the backend.", "primary");
+      } catch (error) {
+        streamTerminalStep("GuardianAgent", `Chaos reset failed: ${error.message}.`, "danger");
+      }
     }
 
-    async function switchActiveTenantMirror(newTenant) {
+    async function switchActiveTenantMirror(newTenant, silent = false) {
+      const tenantChanged = AppState.activeTenant !== newTenant;
       AppState.activeTenant = newTenant;
-      const fresh = createTenantDataset(newTenant);
-      AppState.buckets = fresh.buckets;
-      AppState.memories = fresh.memories;
       AppState.selectedNodeId = null;
+      const fallback = createTenantDataset(newTenant);
+      AppState.buckets = fallback.buckets;
+      AppState.memories = fallback.memories;
+      AppState.apiGraphTopology = null;
 
       try {
-        await fetch(`${API_BASE}/api/graph/topology?tenant=${newTenant}`, {
-          headers: { "X-Tenant-Graph": newTenant }
-        });
-      } catch (_) {}
+        const query = `?tenant=${encodeURIComponent(newTenant)}`;
+        const headers = { "X-Tenant-Graph": newTenant };
+        const [topologyResponse, bucketsResponse, memoryResponse, statsResponse, healthResponse] = await Promise.all([
+          fetch(`${API_BASE}/api/graph/topology${query}`, { headers }),
+          fetch(`${API_BASE}/api/buckets/dark${query}`, { headers }),
+          fetch(`${API_BASE}/api/memory/vault${query}`, { headers }),
+          fetch(`${API_BASE}/api/graph/stats${query}`, { headers }),
+          fetch(`${API_BASE}/api/health${query}`, { headers })
+        ]);
+        const [topology, buckets, memory, stats, health] = await Promise.all([
+          topologyResponse.json(), bucketsResponse.json(), memoryResponse.json(), statsResponse.json(), healthResponse.json()
+        ]);
+        if (!topologyResponse.ok) throw new Error(topology.detail || `Topology request failed (${topologyResponse.status})`);
+        if (!bucketsResponse.ok) throw new Error(buckets.detail || `Bucket request failed (${bucketsResponse.status})`);
+        if (!memoryResponse.ok) throw new Error(memory.detail || `Memory request failed (${memoryResponse.status})`);
+        if (!statsResponse.ok) throw new Error(stats.detail || `Stats request failed (${statsResponse.status})`);
+        if (!healthResponse.ok) throw new Error(health.detail || `Health request failed (${healthResponse.status})`);
 
-      AppState.metrics.idleBuckets = AppState.buckets.filter(b => !b.pruned).length;
-      AppState.metrics.protectedLocks = AppState.buckets.filter(b => !b.pruned && !b.safe_to_prune).length;
+        AppState.apiGraphTopology = topology;
+        AppState.graphMode = health.graph_mode || "unknown";
+        AppState.buckets = Array.isArray(buckets.buckets) ? buckets.buckets : fallback.buckets;
+        AppState.memories = Array.isArray(memory.memories) ? memory.memories : fallback.memories;
+        AppState.metrics = {
+          totalNodes: Number(stats.total_nodes ?? topology.total_nodes ?? 0),
+          totalEdges: Number(stats.total_edges ?? topology.total_edges ?? 0),
+          idleBuckets: Number(stats.idle_data_traps_count ?? 0),
+          protectedLocks: Number(stats.protected_locks_count ?? 0),
+          reclaimedGb: Number(stats.storage_reclaimed_gb ?? 0),
+          monthlySavedUsd: Number(stats.monthly_money_saved_usd ?? 0),
+          carbonOffsetKg: Number(stats.carbon_footprint_offset_kg ?? 0)
+        };
+      } catch (error) {
+        streamTerminalStep("GuardianAgent", `Backend refresh failed; showing local demo fallback: ${error.message}.`, "warning");
+      }
 
       initVisTopologyRadar();
       updateGlobalMetricsBar();
       renderQuarantineCards();
       closeNodeInspector();
-
-      streamTerminalStep("ReconAgent", `Switched Active Tenant Mirror to [${newTenant}] for Lead Architect @prateek.`, "primary");
-    }
-
-    function updateGlobalMetricsBar() {
-      const m = AppState.metrics;
-      document.getElementById("kpi-nodes").textContent = m.totalNodes;
-      document.getElementById("kpi-edges").textContent = m.totalEdges;
-      document.getElementById("kpi-idle-traps").textContent = m.idleBuckets;
-      document.getElementById("kpi-prod-locks").textContent = m.protectedLocks;
-      document.getElementById("kpi-reclaimed-gb").textContent = m.reclaimedGb.toLocaleString();
-      document.getElementById("kpi-monthly-saved").textContent = m.monthlySavedUsd.toLocaleString();
-      document.getElementById("kpi-annual-saved").textContent = `$${(m.monthlySavedUsd * 12).toLocaleString()} saved per year`;
-      document.getElementById("kpi-carbon-offset").textContent = m.carbonOffsetKg.toFixed(1);
+      if (tenantChanged && !silent) {
+        streamTerminalStep("ReconAgent", `Loaded tenant [${newTenant}] from the backend graph context.`, "primary");
+      }
     }
 
     // =========================================================================
     // POWERHOUSE FEATURE 3: EPISODIC MEMORY VAULT MODAL
     // =========================================================================
     async function openEpisodicMemoryVault() {
+      streamTerminalStep("UIAgent", "Opening Episodic Memory Vault and requesting backend memories...", "secondary");
       const modal = document.getElementById("episodic-memory-vault-modal");
       modal.classList.remove("hidden");
       modal.classList.add("flex");
 
       try {
-        await fetch(`${API_BASE}/api/memory/vault?tenant=${AppState.activeTenant}`, {
+        const response = await fetch(`${API_BASE}/api/memory/vault?tenant=${encodeURIComponent(AppState.activeTenant)}`, {
           headers: { "X-Tenant-Graph": AppState.activeTenant }
         });
-      } catch (_) {}
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(result.detail || `Memory vault request failed (${response.status})`);
+        if (Array.isArray(result.memories)) AppState.memories = result.memories;
+      } catch (error) {
+        streamTerminalStep("GuardianAgent", `Memory vault could not refresh: ${error.message}. Showing last loaded session data.`, "warning");
+      }
 
       const container = document.getElementById("memory-vault-list");
       container.innerHTML = AppState.memories.map(m => `
         <div class="p-4 rounded-2xl bg-black/75 border border-white/15 space-y-2">
           <div class="flex flex-wrap items-center justify-between gap-2">
             <span class="text-xs font-mono-code font-bold px-2.5 py-0.5 rounded btn-holo-secondary">
-              ${m.verdict}
+              ${escapeHTML(m.verdict)}
             </span>
             <span class="text-xs font-mono-code text-slate-400">
-              ${m.timestamp} • Owner: <strong class="text-theme-primary">@prateek</strong>
+              ${escapeHTML(m.timestamp)} • Owner: <strong class="text-theme-primary">@prateek</strong>
             </span>
           </div>
-          <div class="font-mono-code text-sm font-bold text-white">${m.bucket}</div>
-          <p class="text-xs text-slate-200 leading-relaxed">${m.summary}</p>
+          <div class="font-mono-code text-sm font-bold text-white">${escapeHTML(m.bucket)}</div>
+          <p class="text-xs text-slate-200 leading-relaxed">${escapeHTML(m.summary)}</p>
           <div class="p-2.5 rounded-xl bg-white/5 border border-white/10 text-xs font-mono-code text-theme-primary">
-            ${m.rule}
+            ${escapeHTML(m.rule)}
           </div>
         </div>
       `).join("");
@@ -2051,12 +2186,14 @@ RETURN b.id, collect(distinct s.id) AS connected_services, length(path) AS hops;
       const modal = document.getElementById("episodic-memory-vault-modal");
       modal.classList.add("hidden");
       modal.classList.remove("flex");
+      streamTerminalStep("UIAgent", "Episodic Memory Vault closed.", "secondary");
     }
 
     // =========================================================================
     // EXECUTIVE AUDIT REPORT MODAL & DOWNLOAD SYSTEM (.HTML + .JSON + PDF)
     // =========================================================================
     function openExecutiveAuditReportModal() {
+      streamTerminalStep("GuardianAgent", "Generating Executive Audit Report from currently loaded dashboard data...", "secondary");
       const modal = document.getElementById("executive-audit-report-modal");
       modal.classList.remove("hidden");
       modal.classList.add("flex");
@@ -2076,26 +2213,26 @@ RETURN b.id, collect(distinct s.id) AS connected_services, length(path) AS hops;
           </div>
           <div class="text-right font-mono-code text-xs">
             <div class="text-white font-bold">Solo Lead Architect: Prateek Gupta (@prateek)</div>
-            <div class="text-slate-400">Active Tenant Mirror: ${AppState.activeTenant}</div>
-            <div class="text-[#00FF66]">Multi-Agent Sign-Off: CERTIFIED SAFE</div>
+            <div class="text-slate-400">Active Tenant Mirror: ${escapeHTML(AppState.activeTenant)}</div>
+            <div class="text-theme-primary">Policy checks recorded • demo prototype</div>
           </div>
         </div>
 
         <div class="grid grid-cols-2 md:grid-cols-4 gap-3 font-mono-code">
           <div class="p-3.5 rounded-xl bg-white/5 border border-white/15">
-            <div class="text-[10px] text-slate-400 uppercase">Storage Reclaimed</div>
+            <div class="text-[10px] text-slate-400 uppercase">Projected Reclaim</div>
             <div class="text-lg font-extrabold text-theme-primary mt-1">${m.reclaimedGb.toLocaleString()} GB</div>
           </div>
           <div class="p-3.5 rounded-xl bg-white/5 border border-white/15">
-            <div class="text-[10px] text-slate-400 uppercase">Monthly Money Saved</div>
+            <div class="text-[10px] text-slate-400 uppercase">Estimated Monthly Savings</div>
             <div class="text-lg font-extrabold text-[#00FF66] mt-1">$${m.monthlySavedUsd.toLocaleString()} /mo</div>
           </div>
           <div class="p-3.5 rounded-xl bg-white/5 border border-white/15">
-            <div class="text-[10px] text-slate-400 uppercase">Annualized Savings</div>
+            <div class="text-[10px] text-slate-400 uppercase">Estimated Annual Savings</div>
             <div class="text-lg font-extrabold text-white mt-1">$${(m.monthlySavedUsd * 12).toLocaleString()} /yr</div>
           </div>
           <div class="p-3.5 rounded-xl bg-white/5 border border-white/15">
-            <div class="text-[10px] text-slate-400 uppercase">Carbon Offset</div>
+            <div class="text-[10px] text-slate-400 uppercase">Estimated Carbon Impact</div>
             <div class="text-lg font-extrabold text-theme-secondary mt-1">${m.carbonOffsetKg.toFixed(1)} kg CO2e</div>
           </div>
         </div>
@@ -2119,11 +2256,11 @@ RETURN b.id, collect(distinct s.id) AS connected_services, length(path) AS hops;
               <tbody class="divide-y divide-white/10">
                 ${lockedBuckets.map(b => `
                   <tr>
-                    <td class="p-2.5 font-bold text-white">${b.id}</td>
+                    <td class="p-2.5 font-bold text-white">${escapeHTML(b.id)}</td>
                     <td class="p-2.5">${b.idle_days}d</td>
                     <td class="p-2.5">${(b.size_gb / 1000).toFixed(1)} TB</td>
-                    <td class="p-2.5 text-theme-danger">${b.verdict_label}</td>
-                    <td class="p-2.5">${b.connected_services.join(", ") || "PII Hold"}</td>
+                    <td class="p-2.5 text-theme-danger">${escapeHTML(b.verdict_label)}</td>
+                    <td class="p-2.5">${escapeHTML((b.connected_services || []).join(", ") || "PII Hold")}</td>
                     <td class="p-2.5 text-theme-primary">@prateek</td>
                   </tr>
                 `).join("")}
@@ -2134,26 +2271,33 @@ RETURN b.id, collect(distinct s.id) AS connected_services, length(path) AS hops;
 
         <div class="space-y-2">
           <h4 class="text-xs font-extrabold uppercase tracking-wider text-white">
-            2. Itemized Pruned &amp; Eligible Orphaned Buckets (${prunedBuckets.length} Pruned in Session | ${safeRemaining.length} Ready)
+            2. Graph Metadata Pruned &amp; Eligible Orphaned Buckets (${prunedBuckets.length} Pruned in Graph | ${safeRemaining.length} Ready)
           </h4>
           <p class="text-xs text-slate-300 leading-relaxed">
-            Cumulative storage mass of <strong>${m.reclaimedGb.toLocaleString()} GB</strong> reclaimed with zero production incidents, verified by <strong>Recon (Scout)</strong>, <strong>Sherlock (Reasoner)</strong>, and <strong>Guardian (Governor)</strong> under the authority of <strong>Prateek Gupta (@prateek)</strong>.
+            Projected impact of <strong>${m.reclaimedGb.toLocaleString()} GB</strong> from demo telemetry. Actions update graph metadata only; no external cloud storage objects are deleted. Decisions are evaluated by <strong>Recon (Scout)</strong>, <strong>Sherlock (Reasoner)</strong>, and <strong>Guardian (Governor)</strong> under the authority of <strong>Prateek Gupta (@prateek)</strong>.
           </p>
         </div>
 
         <div class="pt-3 border-t border-white/15 flex items-center justify-between text-xs font-mono-code text-slate-400">
           <span>Digital Signature: Prateek Gupta (@prateek) — Principal Architect</span>
-          <span>Powered by FalkorDB Cloud Multigraph</span>
+          <span>Graph backend: ${escapeHTML(AppState.graphMode)}</span>
         </div>
       `;
 
       lucide.createIcons();
+      streamTerminalStep("GuardianAgent", `Memory Vault displayed ${AppState.memories.length} record(s) from the current session state.`, "primary");
+    }
+
+    function printExecutiveAuditReport() {
+      streamTerminalStep("GuardianAgent", "Print requested for the currently generated Executive Audit Report.", "primary");
+      window.print();
     }
 
     function closeExecutiveAuditReportModal() {
       const modal = document.getElementById("executive-audit-report-modal");
       modal.classList.add("hidden");
       modal.classList.remove("flex");
+      streamTerminalStep("UIAgent", "Executive Audit Report closed.", "secondary");
     }
 
     function downloadExecutiveReportHTML() {
@@ -2225,18 +2369,24 @@ RETURN b.id, collect(distinct s.id) AS connected_services, length(path) AS hops;
 
       const line = document.createElement("div");
       line.className = "flex items-start gap-2 leading-relaxed";
-      line.innerHTML = `
-        <span class="text-slate-500 shrink-0">[${ts}]</span>
-        <span class="font-bold shrink-0" style="${colorCss}">[${agentTag}]:</span>
-        <span class="text-slate-200">${message}</span>
-      `;
+      const timeNode = document.createElement("span");
+      timeNode.className = "text-slate-500 shrink-0";
+      timeNode.textContent = `[${ts}]`;
+      const agentNode = document.createElement("span");
+      agentNode.className = "font-bold shrink-0";
+      agentNode.style.cssText = colorCss;
+      agentNode.textContent = `[${String(agentTag)}]:`;
+      const messageNode = document.createElement("span");
+      messageNode.className = "text-slate-200";
+      messageNode.textContent = String(message ?? "");
+      line.append(timeNode, agentNode, messageNode);
       term.appendChild(line);
       term.scrollTop = term.scrollHeight;
     }
 
     function clearAgentTerminal() {
       document.getElementById("agent-thought-terminal").innerHTML = "";
-      streamTerminalStep("ReconAgent", "Terminal stream cleared. Awaiting commands from Lead Architect @prateek...", "primary");
+      streamTerminalStep("UIAgent", "Terminal cleared by user. New activity will appear here.", "secondary");
     }
 
     function toggleTerminalDrawer() {
@@ -2244,12 +2394,30 @@ RETURN b.id, collect(distinct s.id) AS connected_services, length(path) AS hops;
       const icon = document.getElementById("terminal-chevron-icon");
       term.classList.toggle("hidden");
       icon.classList.toggle("rotate-180");
+      streamTerminalStep("UIAgent", term.classList.contains("hidden") ? "Agent Activity panel collapsed." : "Agent Activity panel expanded.", "secondary");
     }
+
+    // Global visible click feedback: every dashboard button acknowledges clicks.
+    document.addEventListener("click", (event) => {
+      const button = event.target.closest("button[onclick]");
+      if (!button || button.disabled) return;
+      button.classList.add("ring-2", "ring-cyan-400", "scale-[0.98]");
+      button.setAttribute("aria-busy", "true");
+      const actionLabel = (button.innerText || button.getAttribute("aria-label") || button.title || "Dashboard button").replace(/\s+/g, " ").trim().slice(0, 90);
+      streamTerminalStep("UIAgent", `CLICK RECEIVED: "${actionLabel}". Running its assigned handler; check the following result entry.`, "secondary");
+      const oldTitle = button.getAttribute("title");
+      button.setAttribute("title", "Action triggered — see Agent Activity Terminal for the result");
+      setTimeout(() => {
+        button.classList.remove("ring-2", "ring-cyan-400", "scale-[0.98]");
+        button.removeAttribute("aria-busy");
+        if (oldTitle === null) button.removeAttribute("title"); else button.setAttribute("title", oldTitle);
+      }, 900);
+    }, true);
 
     // =========================================================================
     // BOOTSTRAP WAR ROOM ON DOM LOAD
     // =========================================================================
-    window.addEventListener("DOMContentLoaded", () => {
+    window.addEventListener("DOMContentLoaded", async () => {
       document.documentElement.setAttribute("data-theme", AppState.theme);
       document.getElementById("theme-switcher-select").value = AppState.theme;
 
@@ -2257,9 +2425,7 @@ RETURN b.id, collect(distinct s.id) AS connected_services, length(path) AS hops;
       AppState.buckets = initial.buckets;
       AppState.memories = initial.memories;
 
-      initVisTopologyRadar();
-      updateGlobalMetricsBar();
-      renderQuarantineCards();
+      await switchActiveTenantMirror(AppState.activeTenant, true);
       lucide.createIcons();
 
       // Stream exact required telemetry boot sequence
@@ -2270,7 +2436,7 @@ RETURN b.id, collect(distinct s.id) AS connected_services, length(path) AS hops;
         streamTerminalStep("SherlockAgent", "Executing 1..3 hop Cypher traversal on FalkorDB cloud...", "secondary");
       }, 520);
       setTimeout(() => {
-        streamTerminalStep("GuardianAgent", "Committing episodic memory node to graph for Lead Architect @prateek...", "primary");
+        streamTerminalStep("GuardianAgent", `Restored graph context in ${AppState.graphMode} mode for tenant ${AppState.activeTenant}.`, AppState.graphMode === "falkordb_cloud" ? "primary" : "warning");
       }, 900);
     });
   </script>
